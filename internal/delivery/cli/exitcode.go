@@ -168,9 +168,14 @@ func reportError(app *App, cmd *cobra.Command, args []string, err error) int {
 	if wantsJSON(cmd, args) && writeErrorJSON(app.Stdout, code, err) == nil {
 		return code
 	}
-	fmt.Fprintf(app.Stderr, "envault: %s\n", err)
-	if code == ExitUsage && cmd != nil {
-		fmt.Fprintf(app.Stderr, "Veja %q.\n", cmd.CommandPath()+" --help")
-	}
+	_, _ = io.WriteString(app.Stderr, errorText(cmd, code, err))
 	return code
+}
+
+func errorText(cmd *cobra.Command, code int, err error) string {
+	text := fmt.Sprintf("envault: %s\n", err)
+	if code == ExitUsage && cmd != nil {
+		text += fmt.Sprintf("Veja %q.\n", cmd.CommandPath()+" --help")
+	}
+	return text
 }

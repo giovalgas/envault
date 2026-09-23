@@ -22,18 +22,21 @@ func newEditCmd(app *App) *cobra.Command {
 				return editorExitCode(err)
 			}
 			if !result.Changed {
-				app.Infof("nada mudou em %q", name)
-				return nil
+				return app.Infof("nada mudou em %q", name)
 			}
-			app.Infof("env %q atualizada:", name)
-			editReportDiff(app, result.Diff)
-			return nil
+			if err := app.Infof("env %q atualizada:", name); err != nil {
+				return err
+			}
+			return editReportDiff(app, result.Diff)
 		},
 	}
 }
 
-func editReportDiff(app *App, diff vault.Diff) {
+func editReportDiff(app *App, diff vault.Diff) error {
 	for _, line := range diff.Lines() {
-		app.Infof("  %s", line)
+		if err := app.Infof("  %s", line); err != nil {
+			return err
+		}
 	}
+	return nil
 }

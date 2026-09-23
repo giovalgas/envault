@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -66,7 +67,7 @@ func (f *templateFlags) resolve() (templateSource, error) {
 	if !explicit {
 		path = templateDefaultPath
 	}
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(filepath.Clean(path))
 	switch {
 	case errors.Is(err, fs.ErrNotExist) && explicit:
 		return templateSource{}, fmt.Errorf("%w: template %s não existe", ErrValidation, path)

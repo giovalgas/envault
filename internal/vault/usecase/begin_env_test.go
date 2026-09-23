@@ -77,7 +77,7 @@ func reviewErr(err error) func(domain.Env) (domain.EditResult, error) {
 }
 
 func TestBeginEditEnvReopensThenApplies(t *testing.T) {
-	repo := newRepo(sampleEnv("a"))
+	repo := newRepo(sampleEnv())
 	editor := sessionTo(reviewErr(domain.ErrEditReopen), reviewTo(domain.Env{Description: "nova", Vars: []domain.Var{{Key: "POOL", Value: "20"}}}))
 	draft, err := NewBeginEditEnv(repo, editor, later).Execute(context.Background(), "a")
 	if err != nil {
@@ -112,7 +112,7 @@ func TestBeginEditEnvReopensThenApplies(t *testing.T) {
 }
 
 func TestBeginEditEnvDetectsConcurrentChange(t *testing.T) {
-	repo := newRepo(sampleEnv("a"))
+	repo := newRepo(sampleEnv())
 	editor := sessionTo(reviewTo(domain.Env{Vars: []domain.Var{{Key: "Z", Value: "z"}}}))
 	draft, err := NewBeginEditEnv(repo, editor, later).Execute(context.Background(), "a")
 	if err != nil {
@@ -137,8 +137,8 @@ func TestBeginEditEnvDetectsConcurrentChange(t *testing.T) {
 }
 
 func TestBeginEditEnvUnchangedAndErrors(t *testing.T) {
-	repo := newRepo(sampleEnv("a"))
-	editor := sessionTo(reviewTo(sampleEnv("a")))
+	repo := newRepo(sampleEnv())
+	editor := sessionTo(reviewTo(sampleEnv()))
 	draft, err := NewBeginEditEnv(repo, editor, later).Execute(context.Background(), "a")
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
@@ -162,7 +162,7 @@ func TestBeginEditEnvUnchangedAndErrors(t *testing.T) {
 
 func TestBeginEditEnvCancelClosesSession(t *testing.T) {
 	editor := sessionTo(reviewErr(domain.ErrEditCanceled))
-	draft, err := NewBeginEditEnv(newRepo(sampleEnv("a")), editor, later).Execute(context.Background(), "a")
+	draft, err := NewBeginEditEnv(newRepo(sampleEnv()), editor, later).Execute(context.Background(), "a")
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
@@ -172,9 +172,9 @@ func TestBeginEditEnvCancelClosesSession(t *testing.T) {
 }
 
 func TestBeginEditEnvReportsCloseFailure(t *testing.T) {
-	editor := sessionTo(reviewTo(sampleEnv("a")))
+	editor := sessionTo(reviewTo(sampleEnv()))
 	editor.session.closeErr = errors.New("disco")
-	draft, err := NewBeginEditEnv(newRepo(sampleEnv("a")), editor, later).Execute(context.Background(), "a")
+	draft, err := NewBeginEditEnv(newRepo(sampleEnv()), editor, later).Execute(context.Background(), "a")
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
@@ -184,7 +184,7 @@ func TestBeginEditEnvReportsCloseFailure(t *testing.T) {
 }
 
 func TestBeginCreateEnv(t *testing.T) {
-	repo := newRepo(sampleEnv("a"))
+	repo := newRepo(sampleEnv())
 	editor := sessionTo(reviewTo(domain.Env{Description: "do editor", Vars: []domain.Var{{Key: "A", Value: "1"}}}))
 	draft, err := NewBeginCreateEnv(repo, editor, later).Execute(context.Background(), domain.Env{Name: "nova"})
 	if err != nil {
@@ -210,7 +210,7 @@ func TestBeginCreateEnv(t *testing.T) {
 }
 
 func TestBeginCreateEnvRejects(t *testing.T) {
-	repo := newRepo(sampleEnv("a"))
+	repo := newRepo(sampleEnv())
 	editor := sessionTo()
 	if _, err := NewBeginCreateEnv(repo, editor, later).Execute(context.Background(), domain.Env{Name: "a"}); !errors.Is(err, domain.ErrEnvExists) {
 		t.Fatalf("exists err = %v", err)

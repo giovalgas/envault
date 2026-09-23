@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -38,8 +39,7 @@ func newShowCmd(app *App) *cobra.Command {
 			if asJSON {
 				return writeJSON(app.Stdout, showBuildEnvelope(env))
 			}
-			showPrintHuman(app, env)
-			return nil
+			return showPrintHuman(app, env)
 		},
 	}
 	showCmd.Flags().BoolVar(&asJSON, jsonFlag, false, "saída em JSON")
@@ -58,15 +58,18 @@ func showBuildEnvelope(env vault.Env) showEnvelope {
 	}
 }
 
-func showPrintHuman(app *App, env vault.Env) {
-	fmt.Fprintf(app.Stdout, "%s\n", env.Name)
+func showPrintHuman(app *App, env vault.Env) error {
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s\n", env.Name)
 	if env.Description != "" {
-		fmt.Fprintf(app.Stdout, "  descrição: %s\n", env.Description)
+		fmt.Fprintf(&b, "  descrição: %s\n", env.Description)
 	}
 	if len(env.Tags) > 0 {
-		fmt.Fprintf(app.Stdout, "  tags: %s\n", strings.Join(env.Tags, ", "))
+		fmt.Fprintf(&b, "  tags: %s\n", strings.Join(env.Tags, ", "))
 	}
-	fmt.Fprintf(app.Stdout, "  chaves: %s\n", strings.Join(env.Keys(), ", "))
-	fmt.Fprintf(app.Stdout, "  criada em: %s\n", env.CreatedAt.Format(time.RFC3339))
-	fmt.Fprintf(app.Stdout, "  atualizada em: %s\n", env.UpdatedAt.Format(time.RFC3339))
+	fmt.Fprintf(&b, "  chaves: %s\n", strings.Join(env.Keys(), ", "))
+	fmt.Fprintf(&b, "  criada em: %s\n", env.CreatedAt.Format(time.RFC3339))
+	fmt.Fprintf(&b, "  atualizada em: %s\n", env.UpdatedAt.Format(time.RFC3339))
+	_, err := io.WriteString(app.Stdout, b.String())
+	return err
 }

@@ -40,9 +40,7 @@ func keyMigrate(ctx context.Context, app *App) error {
 		return err
 	}
 	if !result.Migrated {
-		app.Infof("a chave já está no keychain (serviço %s, conta %s); nada a migrar", result.Service, result.Account)
-		return nil
+		return app.Infof("a chave já está no keychain (serviço %s, conta %s); nada a migrar", result.Service, result.Account)
 	}
-	app.Infof("chave migrada para o keychain (serviço %s, conta %s); arquivo %s removido", result.Service, result.Account, result.File)
-	return nil
+	return app.Infof("chave migrada para o keychain (serviço %s, conta %s); arquivo %s removido", result.Service, result.Account, result.File)
 }

@@ -26,11 +26,11 @@ func newWriteFile(t *testing.T, content string) string {
 	return path
 }
 
-func newGetEnv(t *testing.T, ta *testApp, name string) vault.Env {
+func newGetEnv(t *testing.T, ta *testApp) vault.Env {
 	t.Helper()
-	env, err := ta.vault(t).Get(context.Background(), name)
+	env, err := ta.vault(t).Get(context.Background(), "a")
 	if err != nil {
-		t.Fatalf("Get(%s): %v", name, err)
+		t.Fatalf("Get(a): %v", err)
 	}
 	return env
 }
@@ -51,7 +51,7 @@ func TestNewFromFileWithTags(t *testing.T) {
 	if code != ExitOK {
 		t.Fatalf("code = %d, stderr = %q", code, ta.Err.String())
 	}
-	env := newGetEnv(t, ta, "a")
+	env := newGetEnv(t, ta)
 	if !slices.Equal(env.Tags, []string{"db", "local"}) || !slices.Equal(env.Keys(), []string{"DATABASE_URL", "POOL"}) {
 		t.Fatalf("env = %+v", env)
 	}
@@ -70,7 +70,7 @@ func TestNewFromFileKeepsFileMetadata(t *testing.T) {
 	if code := ta.runWith(newNewCmd(ta.App), "new", "a", "--from-file", path); code != ExitOK {
 		t.Fatalf("code = %d, stderr = %q", code, ta.Err.String())
 	}
-	env := newGetEnv(t, ta, "a")
+	env := newGetEnv(t, ta)
 	if env.Description != "do arquivo" || !slices.Equal(env.Tags, []string{"db"}) {
 		t.Fatalf("env = %+v", env)
 	}
@@ -84,7 +84,7 @@ func TestNewFromFileDescriptionFlagWins(t *testing.T) {
 	if code != ExitOK {
 		t.Fatalf("code = %d, stderr = %q", code, ta.Err.String())
 	}
-	if env := newGetEnv(t, ta, "a"); env.Description != "da flag" {
+	if env := newGetEnv(t, ta); env.Description != "da flag" {
 		t.Fatalf("description = %q", env.Description)
 	}
 }
@@ -126,7 +126,7 @@ func TestNewWithEditor(t *testing.T) {
 	if !strings.HasSuffix(script.Path(1), "a.env") {
 		t.Fatalf("temp path = %q", script.Path(1))
 	}
-	env := newGetEnv(t, ta, "a")
+	env := newGetEnv(t, ta)
 	if v, _ := env.Lookup("DATABASE_URL"); v != "postgres://segredo" || env.Description != "banco" {
 		t.Fatalf("env = %+v", env)
 	}
@@ -158,7 +158,7 @@ func TestNewEditorReopensThenCreates(t *testing.T) {
 	if !strings.HasPrefix(script.Seen(2), "# ERRO linha 4:") {
 		t.Fatalf("second opening = %q", script.Seen(2))
 	}
-	if env := newGetEnv(t, ta, "a"); !slices.Equal(env.Keys(), []string{"A", "KEY"}) {
+	if env := newGetEnv(t, ta); !slices.Equal(env.Keys(), []string{"A", "KEY"}) {
 		t.Fatalf("keys = %q", env.Keys())
 	}
 }

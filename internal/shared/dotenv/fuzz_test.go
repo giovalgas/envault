@@ -14,7 +14,7 @@ func FuzzParse(f *testing.F) {
 		f.Fatalf("Glob: %v", err)
 	}
 	for _, path := range fixtures {
-		data, err := os.ReadFile(path)
+		data, err := os.ReadFile(filepath.Clean(path))
 		if err != nil {
 			f.Fatalf("ReadFile: %v", err)
 		}

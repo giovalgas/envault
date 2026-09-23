@@ -17,8 +17,7 @@ func newRenameCmd(app *App) *cobra.Command {
 			if _, err := uc.RenameEnv.Execute(cmd.Context(), args[0], args[1]); err != nil {
 				return err
 			}
-			app.Infof("%q renomeada para %q", args[0], args[1])
-			return nil
+			return app.Infof("%q renomeada para %q", args[0], args[1])
 		},
 	}
 }

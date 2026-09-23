@@ -165,18 +165,22 @@ func New(ctx context.Context, store Store, opts Options) Model {
 	}
 }
 
-func Run(ctx context.Context, store Store, opts Options) error {
+func Run(ctx context.Context, store Store, opts Options) (err error) {
 	if opts.Debug && opts.Logger == nil {
 		path := opts.LogPath
 		if path == "" {
 			path = filepath.Join(os.TempDir(), debugLogName)
 		}
 		logger := log.New(io.Discard, "", log.LstdFlags)
-		f, err := tea.LogToFileWith(path, debugLogPrefix, logger)
-		if err != nil {
-			return fmt.Errorf("abrir log de depuração: %w", err)
+		f, openErr := tea.LogToFileWith(path, debugLogPrefix, logger)
+		if openErr != nil {
+			return fmt.Errorf("abrir log de depuração: %w", openErr)
 		}
-		defer f.Close()
+		defer func() {
+			if closeErr := f.Close(); closeErr != nil && err == nil {
+				err = fmt.Errorf("fechar log de depuração: %w", closeErr)
+			}
+		}()
 		opts.Logger = logger
 	}
 	programOpts := []tea.ProgramOption{tea.WithAltScreen(), tea.WithContext(ctx)}
@@ -186,7 +190,7 @@ func Run(ctx context.Context, store Store, opts Options) error {
 	if opts.Output != nil {
 		programOpts = append(programOpts, tea.WithOutput(opts.Output))
 	}
-	_, err := tea.NewProgram(New(ctx, store, opts), programOpts...).Run()
+	_, err = tea.NewProgram(New(ctx, store, opts), programOpts...).Run()
 	if err != nil && ctx.Err() != nil {
 		return ctx.Err()
 	}
@@ -498,7 +502,7 @@ func (m Model) openDuplicate() Model {
 				}
 				return m.copyEnvCmd(src, dst), nil
 			}},
-			cancelChoice("cancelar"),
+			cancelChoice(),
 		)
 	m.modal = &modal
 	return m
@@ -523,7 +527,7 @@ func (m Model) openRename() Model {
 				}
 				return m.renameEnvCmd(oldName, newName), nil
 			}},
-			cancelChoice("cancelar"),
+			cancelChoice(),
 		)
 	m.modal = &modal
 	return m
@@ -546,7 +550,7 @@ func (m Model) openDelete() Model {
 				}
 				return m.deleteEnvCmd(name), nil
 			}},
-			cancelChoice("cancelar"),
+			cancelChoice(),
 		)
 	m.modal = &modal
 	return m

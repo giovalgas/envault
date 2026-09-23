@@ -12,7 +12,7 @@ import (
 
 const execTestHelperEnv = "ENVAULT_TEST_EXEC_HELPER"
 
-func TestExecHelperProcess(t *testing.T) {
+func TestExecHelperProcess(*testing.T) {
 	if os.Getenv(execTestHelperEnv) != "1" {
 		return
 	}

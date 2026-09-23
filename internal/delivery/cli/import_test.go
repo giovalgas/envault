@@ -16,7 +16,7 @@ func TestImportCreates(t *testing.T) {
 	if code := ta.runWith(newImportCmd(ta.App), "import", "a", path); code != ExitOK {
 		t.Fatalf("code = %d, stderr = %q", code, ta.Err.String())
 	}
-	env := newGetEnv(t, ta, "a")
+	env := newGetEnv(t, ta)
 	if v, _ := env.Lookup("TOKEN"); v != "valor-importado" || env.Description != "do arquivo" || !env.HasTag("db") {
 		t.Fatalf("env = %+v", env)
 	}
@@ -35,7 +35,7 @@ func TestImportReplacesExactly(t *testing.T) {
 	if code := ta.runWith(newImportCmd(ta.App), "import", "a", path); code != ExitOK {
 		t.Fatalf("code = %d, stderr = %q", code, ta.Err.String())
 	}
-	env := newGetEnv(t, ta, "a")
+	env := newGetEnv(t, ta)
 	want := []vault.Var{{Key: "KEEP", Value: "3"}, {Key: "NEW", Value: "4"}}
 	if !slices.Equal(env.Vars, want) {
 		t.Fatalf("vars = %+v", env.Vars)
@@ -52,7 +52,7 @@ func TestImportDescriptionFlag(t *testing.T) {
 	if code := ta.runWith(newImportCmd(ta.App), "import", "a", path, "--description", "da flag"); code != ExitOK {
 		t.Fatalf("code = %d, stderr = %q", code, ta.Err.String())
 	}
-	if env := newGetEnv(t, ta, "a"); env.Description != "da flag" {
+	if env := newGetEnv(t, ta); env.Description != "da flag" {
 		t.Fatalf("description = %q", env.Description)
 	}
 }
@@ -65,7 +65,7 @@ func TestImportSyntaxErrorKeepsEnv(t *testing.T) {
 	if code != ExitValidation || !strings.Contains(ta.Err.String(), "linha 2") {
 		t.Fatalf("code = %d, stderr = %q", code, ta.Err.String())
 	}
-	if env := newGetEnv(t, ta, "a"); !slices.Equal(env.Keys(), []string{"OLD"}) {
+	if env := newGetEnv(t, ta); !slices.Equal(env.Keys(), []string{"OLD"}) {
 		t.Fatalf("keys = %q", env.Keys())
 	}
 }

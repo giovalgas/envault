@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	planTestSecretDB  = "postgres://usuario:senhaforte@db/app"
+	planTestSecretDB  = "valor-database"
 	planTestSecretApp = "supersegredo"
 )
 
@@ -128,7 +128,7 @@ func planTestWrite(t *testing.T, path, content string) {
 
 func planTestRead(t *testing.T, path string) string {
 	t.Helper()
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		t.Fatalf("ReadFile(%s): %v", path, err)
 	}

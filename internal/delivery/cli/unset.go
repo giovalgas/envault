@@ -23,11 +23,9 @@ func newUnsetCmd(app *App) *cobra.Command {
 				return err
 			}
 			if len(removed) == 0 {
-				app.Infof("nenhuma chave removida em %q", name)
-				return nil
+				return app.Infof("nenhuma chave removida em %q", name)
 			}
-			app.Infof("removida(s) de %q: %s", name, strings.Join(removed, ", "))
-			return nil
+			return app.Infof("removida(s) de %q: %s", name, strings.Join(removed, ", "))
 		},
 	}
 }

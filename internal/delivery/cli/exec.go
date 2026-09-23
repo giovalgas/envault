@@ -45,7 +45,9 @@ func newExecCmd(app *App) *cobra.Command {
 				return composeError(err)
 			}
 			if len(result.Plan.Missing) > 0 {
-				app.Infof("aviso: chaves do template sem valor: %s", strings.Join(result.Plan.Missing, ", "))
+				if err := app.Infof("aviso: chaves do template sem valor: %s", strings.Join(result.Plan.Missing, ", ")); err != nil {
+					return err
+				}
 			}
 			return execChild(app, args, result.Environ)
 		},

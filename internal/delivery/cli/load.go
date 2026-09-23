@@ -94,26 +94,35 @@ func loadError(err error, out string) error {
 func loadRun(app *App, opts *loadOptions, result composeusecase.LoadEnvFileResult, source templateSource) error {
 	target := planTargetOf(result.Target)
 	mode := string(result.Mode)
-	loadReport(app, opts, result.Plan, target, mode, result.Written)
+	if err := loadReport(app, opts, result.Plan, target, mode, result.Written); err != nil {
+		return err
+	}
 	if !opts.asJSON {
 		return nil
 	}
 	return writeJSON(app.Stdout, loadEnvelope{planEnvelope: planBuildEnvelope(result.Plan, source, target), Mode: mode})
 }
 
-func loadReport(app *App, opts *loadOptions, plan composedomain.Plan, target planTarget, mode string, written int) {
+func loadReport(app *App, opts *loadOptions, plan composedomain.Plan, target planTarget, mode string, written int) error {
+	var lines []string
 	if !opts.asJSON {
-		app.Infof("%s %s com %d variáveis de %s.", loadModeVerb(mode), opts.out, written, strings.Join(plan.Envs, ", "))
+		lines = append(lines, fmt.Sprintf("%s %s com %d variáveis de %s.", loadModeVerb(mode), opts.out, written, strings.Join(plan.Envs, ", ")))
 		if len(plan.Conflicts) > 0 {
-			app.Infof("Conflitos resolvidos pela última env: %s.", strings.Join(plan.Conflicts, ", "))
+			lines = append(lines, fmt.Sprintf("Conflitos resolvidos pela última env: %s.", strings.Join(plan.Conflicts, ", ")))
 		}
 	}
 	if len(plan.Missing) > 0 {
-		app.Infof("aviso: chaves do template sem valor, não gravadas: %s", strings.Join(plan.Missing, ", "))
+		lines = append(lines, fmt.Sprintf("aviso: chaves do template sem valor, não gravadas: %s", strings.Join(plan.Missing, ", ")))
 	}
 	if target.Gitignored == composedomain.GitignoreNotIgnored {
-		app.Infof("aviso: %s não está coberto pelo .gitignore; adicione-o para não versionar segredos", opts.out)
+		lines = append(lines, fmt.Sprintf("aviso: %s não está coberto pelo .gitignore; adicione-o para não versionar segredos", opts.out))
 	}
+	for _, line := range lines {
+		if err := app.Infof("%s", line); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func loadModeVerb(mode string) string {

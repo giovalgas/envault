@@ -46,7 +46,7 @@ func TestServeRewritesAndRecords(t *testing.T) {
 	if runtime.GOOS != "windows" && script.Mode(1) != filePerm {
 		t.Fatalf("mode = %o", script.Mode(1))
 	}
-	data, err := os.ReadFile(target)
+	data, err := os.ReadFile(filepath.Clean(target))
 	if err != nil || string(data) != "B=2\n" {
 		t.Fatalf("target = %q, %v", data, err)
 	}

@@ -19,11 +19,9 @@ func newInitCmd(app *App) *cobra.Command {
 				return err
 			}
 			if result.Created {
-				app.Infof("cofre criado em %s", result.Location)
-			} else {
-				app.Infof("cofre já inicializado em %s", result.Location)
+				return app.Infof("cofre criado em %s", result.Location)
 			}
-			return nil
+			return app.Infof("cofre já inicializado em %s", result.Location)
 		},
 	}
 }

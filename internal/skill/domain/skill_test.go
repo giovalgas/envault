@@ -32,7 +32,7 @@ func TestSkillContentFrontmatter(t *testing.T) {
 	if !strings.HasPrefix(c, "---\nname: envault\ndescription: ") {
 		t.Fatalf("frontmatter inesperado: %q", c[:min(len(c), 60)])
 	}
-	for _, want := range []string{".env.example", "segredos", "credenciais", "chaves de API"} {
+	for _, want := range []string{".env.example", "secrets", "credentials", "API keys"} {
 		if !strings.Contains(c, want) {
 			t.Errorf("description sem %q", want)
 		}
@@ -42,13 +42,13 @@ func TestSkillContentFrontmatter(t *testing.T) {
 func TestSkillContentRules(t *testing.T) {
 	c := Content()
 	for _, want := range []string{
-		"NUNCA rode `envault get`, `envault shell`",
-		"NUNCA leia arquivos `.env`",
-		"NUNCA rode `envault new`/`edit`",
-		"NUNCA rode `envault load` sem confirmação explícita",
-		"`envault --version`, `envault list`, `envault show` e `envault plan`",
-		"| 3 | env não encontrada |",
-		"| 7 | validação |",
+		"NEVER run `envault get`, `envault shell`",
+		"NEVER read `.env` files",
+		"NEVER run `envault new`/`edit`",
+		"NEVER run `envault load` without explicit user confirmation",
+		"`envault --version`, `envault list`, `envault show` and `envault plan`",
+		"| 3 | env not found |",
+		"| 7 | validation |",
 	} {
 		if !strings.Contains(c, want) {
 			t.Errorf("SKILL.md sem %q", want)

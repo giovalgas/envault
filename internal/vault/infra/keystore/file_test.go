@@ -65,7 +65,7 @@ func TestFileCreateAndLoad(t *testing.T) {
 	if !bytes.Equal(created, loaded) {
 		t.Fatal("loaded key differs from created key")
 	}
-	raw, err := os.ReadFile(path)
+	raw, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)
 	}

@@ -27,10 +27,10 @@ const (
 	termWidth   = 120
 	termHeight  = 32
 
-	secretDatabaseURL = "postgres://admin:s3cr3t-db-value@localhost:5432/app"
-	secretPGPassword  = "pg-pass-9f8e7d6c"
-	secretStripeKey   = "sk_test_51HxSecretStripeValue"
-	secretRedisURL    = "redis://:redis-secret-42@localhost:6379"
+	secretDatabaseURL = "valor-database"
+	secretPGPassword  = "valor-password"
+	secretStripeKey   = "valor-stripe"
+	secretRedisURL    = "valor-redis"
 )
 
 var allSecrets = []string{secretDatabaseURL, secretPGPassword, secretStripeKey, secretRedisURL}
@@ -331,7 +331,7 @@ func TestRunWritesDebugLogWithoutValues(t *testing.T) {
 	}
 	deadline := time.Now().Add(waitTimeout)
 	for {
-		data, _ := os.ReadFile(logPath)
+		data, _ := os.ReadFile(filepath.Clean(logPath))
 		if bytes.Contains(data, []byte("envs carregadas: 3")) {
 			break
 		}
@@ -353,7 +353,7 @@ func TestRunWritesDebugLogWithoutValues(t *testing.T) {
 	}
 	_ = writer.Close()
 
-	data, err := os.ReadFile(logPath)
+	data, err := os.ReadFile(filepath.Clean(logPath))
 	if err != nil {
 		t.Fatalf("ler log: %v", err)
 	}

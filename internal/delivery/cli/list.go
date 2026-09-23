@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -43,8 +44,7 @@ func newListCmd(app *App) *cobra.Command {
 			if asJSON {
 				return writeJSON(app.Stdout, listBuildEnvelope(filtered))
 			}
-			listPrintHuman(app, filtered)
-			return nil
+			return listPrintHuman(app, filtered)
 		},
 	}
 	listCmd.Flags().StringVar(&search, "search", "", "filtra por nome, descrição, tag ou nome de chave")
@@ -74,20 +74,22 @@ func listNonNil(values []string) []string {
 	return values
 }
 
-func listPrintHuman(app *App, envs []vault.Env) {
+func listPrintHuman(app *App, envs []vault.Env) error {
 	if len(envs) == 0 {
-		app.Infof("nenhuma env encontrada")
-		return
+		return app.Infof("nenhuma env encontrada")
 	}
+	var b strings.Builder
 	for _, e := range envs {
-		fmt.Fprintf(app.Stdout, "%s\n", e.Name)
+		fmt.Fprintf(&b, "%s\n", e.Name)
 		if e.Description != "" {
-			fmt.Fprintf(app.Stdout, "  descrição: %s\n", e.Description)
+			fmt.Fprintf(&b, "  descrição: %s\n", e.Description)
 		}
 		if len(e.Tags) > 0 {
-			fmt.Fprintf(app.Stdout, "  tags: %s\n", strings.Join(e.Tags, ", "))
+			fmt.Fprintf(&b, "  tags: %s\n", strings.Join(e.Tags, ", "))
 		}
-		fmt.Fprintf(app.Stdout, "  chaves: %s\n", strings.Join(e.Keys(), ", "))
-		fmt.Fprintf(app.Stdout, "  atualizado em: %s\n", e.UpdatedAt.Format(time.RFC3339))
+		fmt.Fprintf(&b, "  chaves: %s\n", strings.Join(e.Keys(), ", "))
+		fmt.Fprintf(&b, "  atualizado em: %s\n", e.UpdatedAt.Format(time.RFC3339))
 	}
+	_, err := io.WriteString(app.Stdout, b.String())
+	return err
 }

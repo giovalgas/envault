@@ -102,7 +102,7 @@ func Serve() {
 	if dir == "" {
 		return
 	}
-	os.Exit(serve(dir, targetArg(os.Args)))
+	os.Exit(serve(filepath.Clean(dir), targetArg(os.Args)))
 }
 
 func serve(dir, target string) int {
@@ -110,6 +110,7 @@ func serve(dir, target string) int {
 		fmt.Fprintln(os.Stderr, "editor falso: arquivo ausente")
 		return exitBadState
 	}
+	target = filepath.Clean(target)
 	n := readCalls(dir) + 1
 	if err := os.WriteFile(filepath.Join(dir, callsFile), []byte(strconv.Itoa(n)), filePerm); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -150,7 +151,7 @@ func apply(dir string, n int, target string, step Step) int {
 }
 
 func record(dir string, n int, target string) error {
-	seen, err := os.ReadFile(target)
+	seen, err := os.ReadFile(filepath.Clean(target))
 	if err != nil {
 		return err
 	}
@@ -172,7 +173,7 @@ func record(dir string, n int, target string) error {
 }
 
 func readCalls(dir string) int {
-	data, err := os.ReadFile(filepath.Join(dir, callsFile))
+	data, err := os.ReadFile(filepath.Clean(filepath.Join(dir, callsFile)))
 	if err != nil {
 		return 0
 	}

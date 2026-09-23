@@ -23,7 +23,7 @@ func skillTestReadSource(t *testing.T) []byte {
 
 func skillTestAssertInstalled(t *testing.T, path string) {
 	t.Helper()
-	got, err := os.ReadFile(path)
+	got, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		t.Fatalf("ler instalado: %v", err)
 	}
@@ -73,10 +73,10 @@ func TestSkillInstallOverwritesOld(t *testing.T) {
 	ta := newTestApp(t)
 	dir := t.TempDir()
 	target := filepath.Join(dir, "envault", "SKILL.md")
-	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(target), 0o750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(target, []byte("versão antiga"), 0o644); err != nil {
+	if err := os.WriteFile(target, []byte("versão antiga"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if code := ta.runWith(newSkillCmd(ta.App), "skill", "install", "--dir", dir); code != ExitOK {

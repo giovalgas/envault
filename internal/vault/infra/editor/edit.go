@@ -11,7 +11,7 @@ import (
 	"github.com/giovalgas/envault/internal/vault/domain"
 )
 
-func Edit(ctx context.Context, initial domain.Env, opts Options) (Result, error) {
+func Edit(ctx context.Context, initial domain.Env, opts Options) (result Result, err error) {
 	opts = opts.withDefaults()
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -19,7 +19,11 @@ func Edit(ctx context.Context, initial domain.Env, opts Options) (Result, error)
 	if err != nil {
 		return Result{}, err
 	}
-	defer session.Close()
+	defer func() {
+		if closeErr := session.Close(); closeErr != nil && err == nil {
+			result, err = Result{}, fmt.Errorf("remover arquivo temporário: %w", closeErr)
+		}
+	}()
 	for {
 		cmd := session.Command(ctx)
 		cmd.Stdin = opts.Stdin
@@ -29,11 +33,11 @@ func Edit(ctx context.Context, initial domain.Env, opts Options) (Result, error)
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return Result{}, fmt.Errorf("%w: %w", ErrCanceled, ctxErr)
 		}
-		result, err := session.Review(runErr)
-		if errors.Is(err, ErrReopen) {
+		reviewed, reviewErr := session.Review(runErr)
+		if errors.Is(reviewErr, ErrReopen) {
 			continue
 		}
-		return result, err
+		return reviewed, reviewErr
 	}
 }
 

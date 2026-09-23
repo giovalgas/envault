@@ -26,10 +26,12 @@ import (
 	vaultusecase "github.com/giovalgas/envault/internal/vault/usecase"
 )
 
+const stackReadyText = "2 chaves"
+
 const (
-	secretXFromA = "valor-x-de-a-7f3c"
-	secretXFromB = "valor-x-de-b-91d2"
-	secretYFromB = "valor-y-de-b-44aa"
+	secretXFromA = "valor-xa"
+	secretXFromB = "valor-xb"
+	secretYFromB = "valor-yb"
 )
 
 var composeSecrets = []string{secretXFromA, secretXFromB, secretYFromB}
@@ -95,7 +97,7 @@ func newStack(t *testing.T, envs ...vault.Env) stack {
 	}
 }
 
-func (s stack) start(t *testing.T, first string) *session {
+func (s stack) start(t *testing.T) *session {
 	t.Helper()
 	opts := Options{
 		Actions:   Actions(s.deps),
@@ -103,7 +105,7 @@ func (s stack) start(t *testing.T, first string) *session {
 	}
 	tm := teatest.NewTestModel(t, New(context.Background(), s.store, opts), teatest.WithInitialTermSize(termWidth, termHeight))
 	sess := &session{t: t, tm: tm}
-	sess.waitFor(first)
+	sess.waitFor(stackReadyText)
 	return sess
 }
 
@@ -133,7 +135,7 @@ func (s *session) waitForAll(texts ...string) {
 
 func openComposeAB(t *testing.T, s stack) *session {
 	t.Helper()
-	sess := s.start(t, "2 chaves")
+	sess := s.start(t)
 	sess.typeText(" j ")
 	sess.waitFor("2 marcadas")
 	sess.typeText("l")
@@ -150,7 +152,7 @@ func writeFile(t *testing.T, path, content string) {
 
 func readFile(t *testing.T, path string) string {
 	t.Helper()
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)
 	}
@@ -361,7 +363,7 @@ func TestComposeRejectsEmptyTarget(t *testing.T) {
 func TestComposeTemplateParseErrorIsShown(t *testing.T) {
 	s := newStack(t, composeEnvs()...)
 	writeFile(t, filepath.Join(s.dir, templateFileName), "1BAD=\n")
-	sess := s.start(t, "2 chaves")
+	sess := s.start(t)
 	sess.typeText(" l")
 	sess.waitFor("montar prévia")
 	m, _ := sess.finish()

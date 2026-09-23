@@ -47,8 +47,7 @@ func newNewCmd(app *App) *cobra.Command {
 			if !result.Created {
 				return withExitCode(ExitCanceled, ErrCanceled)
 			}
-			app.Infof("env %q criada com %d chave(s)", result.Env.Name, len(result.Env.Vars))
-			return nil
+			return app.Infof("env %q criada com %d chave(s)", result.Env.Name, len(result.Env.Vars))
 		},
 	}
 	newCmd.Flags().StringVar(&description, newFlagDescription, "", "descrição da env")

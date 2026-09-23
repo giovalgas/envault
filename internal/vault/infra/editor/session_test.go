@@ -104,7 +104,11 @@ func TestEditorTempNameForInvalidEnv(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	defer s.Close()
+	t.Cleanup(func() {
+		if err := s.Close(); err != nil {
+			t.Errorf("Close: %v", err)
+		}
+	})
 	if filepath.Base(s.Path()) != fallbackTmpName+tempFileExt {
 		t.Fatalf("path = %q", s.Path())
 	}

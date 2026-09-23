@@ -49,8 +49,12 @@ func skillInstall(cmd *cobra.Command, app *App, dir string) error {
 	if err != nil {
 		return err
 	}
-	app.Infof("skill instalada em %s", path)
-	app.Infof("%s", skillPermissionsNote)
-	fmt.Fprint(app.Stderr, permissions)
-	return nil
+	if err := app.Infof("skill instalada em %s", path); err != nil {
+		return err
+	}
+	if err := app.Infof("%s", skillPermissionsNote); err != nil {
+		return err
+	}
+	_, err = fmt.Fprint(app.Stderr, permissions)
+	return err
 }

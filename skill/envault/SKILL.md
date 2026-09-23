@@ -1,61 +1,61 @@
 ---
 name: envault
-description: Carrega variáveis de ambiente do cofre local envault para gerar o .env de um projeto. Use SEMPRE que o usuário for iniciar, configurar ou rodar um projeto que precise de .env, mencionar variáveis de ambiente, segredos, credenciais, chaves de API, .env.example, ou pedir para "carregar"/"usar" uma env pelo nome, mesmo que não cite o envault.
+description: Loads environment variables from the local envault vault to build a project's .env. ALWAYS use it when the user is about to start, set up or run a project that needs a .env, mentions environment variables, secrets, credentials, API keys, .env.example, or asks to "load"/"use" an env by name, even without mentioning envault.
 ---
 
 # envault
 
-Você monta o `.env` de projetos a partir de envs salvas no cofre `envault`. Você **nunca vê valores**: trabalha só com nomes de envs, descrições e nomes de chaves.
+You build project `.env` files from envs stored in the `envault` vault. You **never see values**: you only work with env names, descriptions and key names.
 
-## Regras invioláveis
+## Hard rules
 
-- Os únicos comandos do envault que você roda sem pedir permissão são `envault --version`, `envault list`, `envault show` e `envault plan`. Qualquer outro comando do envault exige confirmação explícita do usuário na conversa atual.
-- NUNCA rode `envault get`, `envault shell` nem use `--show`.
-- NUNCA leia arquivos `.env` (cat, Read, grep). Pode ler `.env.example`.
-- NUNCA rode `envault new`/`edit` (são interativos). Se faltar uma env, peça ao usuário para criá-la com `envault` (TUI) ou `envault new <nome>`.
-- NUNCA rode `envault load` sem confirmação explícita do usuário **para aquele carregamento específico**, na conversa atual.
-- Não altere o `.gitignore` sem perguntar.
+- The only envault commands you run without asking for permission are `envault --version`, `envault list`, `envault show` and `envault plan`. Any other envault command needs explicit user confirmation in the current conversation.
+- NEVER run `envault get`, `envault shell` or use `--show`.
+- NEVER read `.env` files (cat, Read, grep). You may read `.env.example`.
+- NEVER run `envault new`/`edit` (they are interactive). If an env is missing, ask the user to create it with `envault` (TUI) or `envault new <name>`.
+- NEVER run `envault load` without explicit user confirmation **for that specific load**, in the current conversation.
+- Do not change `.gitignore` without asking.
 
-## Fluxo
+## Flow
 
-### 0. Pré-checagem
-Rode `envault --version`. Se falhar, explique como instalar e pare. Se `envault list` sair com código 4, peça ao usuário para rodar `envault init`.
+### 0. Pre-check
+Run `envault --version`. If it fails, explain how to install it and stop. If `envault list` exits with code 4, ask the user to run `envault init`.
 
-### 1. O usuário disse quais envs usar?
-- **Nomes exatos:** confirme que existem com `envault list --json` e vá para o passo 3.
-- **Referência vaga** ("a do stripe"): rode `envault list --json --search <termo>`. Uma candidata clara: confirme com o usuário. Várias: passo 2.
-- **Nada:** passo 2.
+### 1. Did the user say which envs to use?
+- **Exact names:** confirm they exist with `envault list --json` and go to step 3.
+- **Vague reference** ("the stripe one"): run `envault list --json --search <term>`. One clear match: confirm it with the user. Several: step 2.
+- **Nothing:** step 2.
 
-### 2. Descoberta
-1. Entenda o que o projeto precisa: `.env.example`, dependências (`package.json`, `go.mod`, `requirements.txt`, `pyproject.toml`...), `docker-compose.yml`.
-2. Rode `envault list --json`.
-3. Cruze nome, descrição, tags e nomes de chaves com as necessidades do projeto. Para detalhar uma candidata, rode `envault show <nome> --json`, que mostra só os nomes das chaves.
-4. Apresente as candidatas (nome, descrição, quais chaves do template cada uma cobre) e peça para o usuário escolher **uma ou mais**, e em que ordem. Use a ferramenta de perguntas com seleção múltipla se disponível; senão, lista numerada.
+### 2. Discovery
+1. Understand what the project needs: `.env.example`, dependencies (`package.json`, `go.mod`, `requirements.txt`, `pyproject.toml`...), `docker-compose.yml`.
+2. Run `envault list --json`.
+3. Match name, description, tags and key names against the project needs. To inspect a match, run `envault show <name> --json`, which shows only key names.
+4. Present the matches (name, description, which template keys each one covers) and ask the user to pick **one or more**, and in which order. Use the question tool with multiple selection if available; otherwise, a numbered list.
 
-### 3. Plano
-Rode `envault plan <envs...> --out <destino>`. Leia do JSON: chaves e origem, `conflicts`, `missing`, `target.exists`, `target.gitignored`.
+### 3. Plan
+Run `envault plan <envs...> --out <target>`. Read from the JSON: keys and their source, `conflicts`, `missing`, `target.exists`, `target.gitignored`.
 
-### 4. Permissão (sempre)
-Mostre um resumo e pergunte se pode continuar:
-- envs na ordem de precedência (a última vence);
-- total de chaves e conflitos (qual env vence);
-- chaves faltando do template;
-- se o destino existe: pergunte **sobrescrever** (`--force`) ou **mesclar** (`--merge`).
+### 4. Permission (always)
+Show a summary and ask whether to proceed:
+- envs in precedence order (the last one wins);
+- total keys and conflicts (which env wins);
+- template keys that are missing;
+- if the target exists: ask whether to **overwrite** (`--force`) or **merge** (`--merge`).
 
-### 5. Carregar
-Só após o "sim": `envault load <envs...> --out <destino> [--force|--merge]`.
-Depois:
-- se `gitignored` for `false`, pergunte se pode adicionar o arquivo ao `.gitignore`;
-- informe os **nomes** das chaves faltantes e sugira criá-las no envault.
+### 5. Load
+Only after a "yes": `envault load <envs...> --out <target> [--force|--merge]`.
+Then:
+- if `gitignored` is `false`, ask whether you may add the file to `.gitignore`;
+- report the **names** of the missing keys and suggest creating them in envault.
 
-## Códigos de saída
+## Exit codes
 
-| código | significado |
+| code | meaning |
 |---|---|
-| 3 | env não encontrada |
-| 4 | cofre não inicializado |
-| 5 | destino existe |
-| 6 | falha ao decifrar |
-| 7 | validação |
+| 3 | env not found |
+| 4 | vault not initialized |
+| 5 | target exists |
+| 6 | decryption failed |
+| 7 | validation |
 
-Explique o erro ao usuário; não tente contornar.
+Explain the error to the user; do not try to work around it.

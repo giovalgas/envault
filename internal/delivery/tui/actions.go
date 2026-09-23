@@ -137,7 +137,7 @@ func (m Model) openNewEnv(msg newEnvPromptMsg) Model {
 					return editorOpenMsg{draft: draft}
 				}, nil
 			}},
-			cancelChoice("cancelar"),
+			cancelChoice(),
 		)
 	m.modal = &modal
 	return m
@@ -222,7 +222,7 @@ func (m Model) openImportPath(msg importPromptMsg) Model {
 				}
 				return func() tea.Msg { return importNameMsg{importer: imp, path: path} }, nil
 			}},
-			cancelChoice("cancelar"),
+			cancelChoice(),
 		)
 	m.modal = &modal
 	return m
@@ -243,7 +243,7 @@ func (m Model) openImportName(msg importNameMsg) Model {
 				}
 				return m.importCmd(imp, path, name), nil
 			}},
-			cancelChoice("cancelar"),
+			cancelChoice(),
 		)
 	m.modal = &modal
 	return m
@@ -262,7 +262,7 @@ func (m Model) openImportReplace(msg importReplaceMsg) Model {
 			choice{label: "substituir", run: func(string) (tea.Cmd, error) {
 				return m.importCmd(msg.importer, msg.path, msg.name), nil
 			}},
-			cancelChoice("cancelar"),
+			cancelChoice(),
 		)
 	m.modal = &modal
 	return m
@@ -271,7 +271,7 @@ func (m Model) openImportReplace(msg importReplaceMsg) Model {
 func (m Model) importCmd(imp importer, path, name string) tea.Cmd {
 	ctx, resolved := m.ctx, resolvePath(imp.dir, path)
 	source := vaultusecase.EnvSource{Name: path, Read: func() ([]byte, error) {
-		data, err := os.ReadFile(resolved)
+		data, err := os.ReadFile(filepath.Clean(resolved))
 		if err != nil {
 			return nil, fmt.Errorf("ler %s: %w", path, err)
 		}

@@ -11,7 +11,7 @@ import (
 
 func readFixture(t *testing.T, name string) []byte {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join("testdata", name))
+	data, err := os.ReadFile(filepath.Clean(filepath.Join("testdata", name)))
 	if err != nil {
 		t.Fatalf("ReadFile(%s): %v", name, err)
 	}
@@ -122,6 +122,11 @@ func TestParseScenarios(t *testing.T) {
 		{"metadado vazio", "# @description:\n# @tags:\n", Document{}},
 		{"tags com vazios", "# @tags: a,, b ,", Document{Tags: []string{"a", "b"}}},
 		{"bom", "\ufeffA=1", Document{Vars: vars("A", "1")}},
+		{"crlf nos metadados", "# @description: Postgres\r\n# @tags: db, local\r\n", Document{Description: "Postgres", Tags: []string{"db", "local"}}},
+		{"cr isolado nas bordas da descrição", "# @description:\r0\r\r\n", Document{Description: "0"}},
+		{"cr isolado nas bordas da tag", "# @tags: \rdb\r, local", Document{Tags: []string{"db", "local"}}},
+		{"cr isolado em valor sem aspas", "A=x\ry", Document{Vars: vars("A", "x\ry")}},
+		{"cr isolado em valor com aspas", "A=\"x\ry\"", Document{Vars: vars("A", "x\ry")}},
 		{"vazio", "", Document{}},
 	}
 	for _, tc := range cases {
@@ -131,6 +136,25 @@ func TestParseScenarios(t *testing.T) {
 				t.Fatalf("Parse(%q): %v", tc.input, err)
 			}
 			assertSameEnv(t, got, tc.want)
+		})
+	}
+}
+
+func TestParseRejectsCarriageReturnInsideMetadata(t *testing.T) {
+	cases := []struct {
+		name   string
+		input  string
+		line   int
+		reason string
+	}{
+		{"descrição com cr isolado", "#@description:0\r0", 1, "@description"},
+		{"descrição com cr isolado após crlf", "A=1\r\n# @description: a\rb\r\n", 2, "@description"},
+		{"tag com cr isolado", "# @tags: d\rb", 1, "tag inválida"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := Parse([]byte(tc.input))
+			assertParseError(t, err, tc.line, tc.reason)
 		})
 	}
 }

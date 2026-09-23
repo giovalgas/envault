@@ -196,8 +196,9 @@ func (a *App) Interactive() bool {
 	return a.StdinIsTerminal() && a.StdoutIsTerminal()
 }
 
-func (a *App) Infof(format string, args ...any) {
-	fmt.Fprintf(a.Stderr, format+"\n", args...)
+func (a *App) Infof(format string, args ...any) error {
+	_, err := fmt.Fprintf(a.Stderr, format+"\n", args...)
+	return err
 }
 
 func isTerminal(stream any) bool {

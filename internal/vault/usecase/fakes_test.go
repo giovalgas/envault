@@ -125,11 +125,11 @@ func source(name, content string) EnvSource {
 	return EnvSource{Name: name, Read: func() ([]byte, error) { return []byte(content), nil }}
 }
 
-func sampleEnv(name string) domain.Env {
+func sampleEnv() domain.Env {
 	return domain.Env{
-		Name:        name,
+		Name:        "a",
 		Description: "Postgres local",
 		Tags:        []string{"db", "local"},
-		Vars:        []domain.Var{{Key: "DATABASE_URL", Value: "postgres://u:p@h/db"}, {Key: "POOL", Value: "10"}},
+		Vars:        []domain.Var{{Key: "DATABASE_URL", Value: "valor-database"}, {Key: "POOL", Value: "10"}},
 	}
 }

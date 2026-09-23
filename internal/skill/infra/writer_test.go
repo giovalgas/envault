@@ -16,7 +16,7 @@ func TestSkillFileWriterCreatesDirs(t *testing.T) {
 	if err := writer.Write(context.Background(), target, []byte("conteúdo")); err != nil {
 		t.Fatalf("Write: %v", err)
 	}
-	got, err := os.ReadFile(target)
+	got, err := os.ReadFile(filepath.Clean(target))
 	if err != nil {
 		t.Fatalf("ler instalado: %v", err)
 	}
@@ -37,17 +37,17 @@ func TestSkillFileWriterCreatesDirs(t *testing.T) {
 func TestSkillFileWriterOverwrites(t *testing.T) {
 	dir := t.TempDir()
 	target := filepath.Join(dir, "envault", "SKILL.md")
-	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(target), 0o750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(target, []byte("conteúdo antigo"+strings.Repeat("x", 10000)), 0o644); err != nil {
+	if err := os.WriteFile(target, []byte("conteúdo antigo"+strings.Repeat("x", 10000)), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	writer := NewFileWriter()
 	if err := writer.Write(context.Background(), target, []byte("novo")); err != nil {
 		t.Fatalf("Write: %v", err)
 	}
-	got, err := os.ReadFile(target)
+	got, err := os.ReadFile(filepath.Clean(target))
 	if err != nil {
 		t.Fatal(err)
 	}

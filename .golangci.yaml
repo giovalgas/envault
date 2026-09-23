@@ -16,6 +16,12 @@ linters:
     - misspell
     - unparam
   settings:
+    misspell:
+      ignore-rules:
+        - comando
+        - comandos
+        - argumentos
+        - processos
     revive:
       enable-default-rules: true
       rules:
@@ -23,6 +29,26 @@ linters:
           disabled: true
         - name: package-comments
           disabled: true
+  exclusions:
+    rules:
+      - path: internal/delivery/cli/exec\.go
+        linters: [gosec]
+        text: G204
+      - path: internal/vault/infra/editor/session\.go
+        linters: [gosec]
+        text: G204
+      - path: internal/compose/infra/gitignore/gitignore\.go
+        linters: [gosec]
+        text: G204
+      - path: internal/compose/infra/gitignore/gitignore_test\.go
+        linters: [gosec]
+        text: G204
+      - path: internal/architecture_test\.go
+        linters: [gosec]
+        text: G204
+      - path: internal/delivery/tui/compose_test\.go
+        linters: [gosec]
+        text: G204
 
 formatters:
   enable:

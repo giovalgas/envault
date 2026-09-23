@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	secretEdited   = "valor-editado-5e6f"
-	secretImported = "valor-importado-0b1c"
+	secretEdited   = "valor-editado"
+	secretImported = "valor-importado"
 )
 
 func TestEditorHelperProcess(*testing.T) {
@@ -26,7 +26,7 @@ var editSecrets = append([]string{secretEdited, secretImported}, composeSecrets.
 func TestTUIEditAppliesAfterDiff(t *testing.T) {
 	script := editortest.Install(t, editortest.Step{Content: "X=" + secretEdited + "\nNOVA=" + secretImported + "\n"})
 	s := newStack(t, composeEnvs()...)
-	sess := s.start(t, "2 chaves")
+	sess := s.start(t)
 	sess.typeText("e")
 	sess.waitForAll("Gravar alterações em a", "+ NOVA", "~ X")
 	if env := s.get(t, "a"); len(env.Vars) != 1 {
@@ -58,7 +58,7 @@ func TestTUIEditReopensOnParseError(t *testing.T) {
 		editortest.Step{Content: "X=" + secretEdited + "\n"},
 	)
 	s := newStack(t, composeEnvs()...)
-	sess := s.start(t, "2 chaves")
+	sess := s.start(t)
 	sess.typeText("e")
 	sess.waitFor("Gravar alterações em a")
 	sess.press(tea.KeyEnter)
@@ -77,7 +77,7 @@ func TestTUIEditReopensOnParseError(t *testing.T) {
 func TestTUIEditDiscardKeepsVault(t *testing.T) {
 	editortest.Install(t, editortest.Step{Content: "X=" + secretEdited + "\n"})
 	s := newStack(t, composeEnvs()...)
-	sess := s.start(t, "2 chaves")
+	sess := s.start(t)
 	sess.typeText("e")
 	sess.waitFor("Gravar alterações em a")
 	sess.press(tea.KeyTab)
@@ -92,7 +92,7 @@ func TestTUIEditDiscardKeepsVault(t *testing.T) {
 func TestTUIEditUnchanged(t *testing.T) {
 	editortest.Install(t, editortest.Step{Keep: true})
 	s := newStack(t, composeEnvs()...)
-	sess := s.start(t, "2 chaves")
+	sess := s.start(t)
 	sess.typeText("e")
 	sess.waitFor("nada mudou em a")
 	m, _ := sess.finish()
@@ -104,7 +104,7 @@ func TestTUIEditUnchanged(t *testing.T) {
 func TestTUIEditorFailureIsShown(t *testing.T) {
 	editortest.Install(t, editortest.Step{Keep: true, Exit: 3})
 	s := newStack(t, composeEnvs()...)
-	sess := s.start(t, "2 chaves")
+	sess := s.start(t)
 	sess.typeText("e")
 	sess.waitFor("editor de")
 	m, _ := sess.finish()
@@ -116,7 +116,7 @@ func TestTUIEditorFailureIsShown(t *testing.T) {
 func TestTUIEditCreatesNewEnv(t *testing.T) {
 	script := editortest.Install(t, editortest.Step{Content: "# @description: nova env\n# @tags: db\nK=" + secretEdited + "\n"})
 	s := newStack(t, composeEnvs()...)
-	sess := s.start(t, "2 chaves")
+	sess := s.start(t)
 	sess.typeText("n")
 	sess.waitFor("Nova env")
 	sess.typeText("nova")
@@ -142,7 +142,7 @@ func TestTUIEditCreatesNewEnv(t *testing.T) {
 func TestTUIEditNewEnvCanceled(t *testing.T) {
 	editortest.Install(t, editortest.Step{Content: "# só comentário\n"})
 	s := newStack(t, composeEnvs()...)
-	sess := s.start(t, "2 chaves")
+	sess := s.start(t)
 	sess.typeText("n")
 	sess.waitFor("Nova env")
 	sess.typeText("nova")
@@ -157,7 +157,7 @@ func TestTUIEditNewEnvCanceled(t *testing.T) {
 func TestTUIEditNewEnvRejectsExistingName(t *testing.T) {
 	script := editortest.Install(t)
 	s := newStack(t, composeEnvs()...)
-	sess := s.start(t, "2 chaves")
+	sess := s.start(t)
 	sess.typeText("n")
 	sess.waitFor("Nova env")
 	sess.typeText("a")
@@ -172,7 +172,7 @@ func TestTUIEditNewEnvRejectsExistingName(t *testing.T) {
 func TestTUIImportCreatesAndReplaces(t *testing.T) {
 	s := newStack(t, composeEnvs()...)
 	writeFile(t, filepath.Join(s.dir, defaultEnvFile), "IMPORTADA="+secretImported+"\nOUTRA=1\n")
-	sess := s.start(t, "2 chaves")
+	sess := s.start(t)
 	sess.typeText("i")
 	sess.waitFor("Importar .env")
 	sess.press(tea.KeyEnter)
@@ -202,7 +202,7 @@ func TestTUIImportCreatesAndReplaces(t *testing.T) {
 
 func TestTUIImportMissingFile(t *testing.T) {
 	s := newStack(t, composeEnvs()...)
-	sess := s.start(t, "2 chaves")
+	sess := s.start(t)
 	sess.typeText("i")
 	sess.waitFor("Importar .env")
 	sess.press(tea.KeyEnter)

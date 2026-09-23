@@ -96,8 +96,12 @@ func (p *envParser) metadata(l line) error {
 		if p.description {
 			return &ParseError{Line: l.number, Reason: "metadado @description repetido"}
 		}
+		description := strings.TrimSpace(body[len(descriptionMarker):])
+		if strings.ContainsRune(description, '\r') {
+			return &ParseError{Line: l.number, Reason: "quebra de linha dentro de @description"}
+		}
 		p.description = true
-		p.doc.Description = strings.TrimSpace(body[len(descriptionMarker):])
+		p.doc.Description = description
 	case strings.HasPrefix(body, tagsMarker):
 		if p.tags {
 			return &ParseError{Line: l.number, Reason: "metadado @tags repetido"}

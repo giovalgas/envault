@@ -34,7 +34,7 @@ func (Files) Write(path string, vars []domain.Var) error {
 }
 
 func (Files) Merge(path string, vars []domain.Var) (int, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		return 0, fmt.Errorf("ler destino %s: %w", path, err)
 	}

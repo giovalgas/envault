@@ -28,7 +28,7 @@ func TestEditUnchanged(t *testing.T) {
 	if !strings.Contains(ta.Err.String(), "nada mudou") {
 		t.Fatalf("stderr = %q", ta.Err.String())
 	}
-	if env := newGetEnv(t, ta, "a"); !env.SameContent(editSeedEnv()) {
+	if env := newGetEnv(t, ta); !env.SameContent(editSeedEnv()) {
 		t.Fatalf("env changed: %+v", env)
 	}
 }
@@ -42,7 +42,7 @@ func TestEditAppliesAndReportsDiffWithoutValues(t *testing.T) {
 	if code := ta.runWith(newEditCmd(ta.App), "edit", "a"); code != ExitOK {
 		t.Fatalf("code = %d, stderr = %q", code, ta.Err.String())
 	}
-	env := newGetEnv(t, ta, "a")
+	env := newGetEnv(t, ta)
 	if v, _ := env.Lookup("B"); v != "valor-b-trocado" || env.Description != "banco novo" {
 		t.Fatalf("env = %+v", env)
 	}
@@ -72,7 +72,7 @@ func TestEditRemovesKey(t *testing.T) {
 	if !strings.Contains(ta.Err.String(), "- A") {
 		t.Fatalf("stderr = %q", ta.Err.String())
 	}
-	if env := newGetEnv(t, ta, "a"); !slices.Equal(env.Keys(), []string{"B"}) {
+	if env := newGetEnv(t, ta); !slices.Equal(env.Keys(), []string{"B"}) {
 		t.Fatalf("keys = %q", env.Keys())
 	}
 }
@@ -84,7 +84,7 @@ func TestEditEmptyFileCancels(t *testing.T) {
 	if code := ta.runWith(newEditCmd(ta.App), "edit", "a"); code != ExitCanceled {
 		t.Fatalf("code = %d, stderr = %q", code, ta.Err.String())
 	}
-	if env := newGetEnv(t, ta, "a"); !env.SameContent(editSeedEnv()) {
+	if env := newGetEnv(t, ta); !env.SameContent(editSeedEnv()) {
 		t.Fatalf("env changed: %+v", env)
 	}
 }
@@ -102,7 +102,7 @@ func TestEditParseErrorReopensThenGiveUp(t *testing.T) {
 	if seen := script.Seen(2); !strings.HasPrefix(seen, "# ERRO linha 4:") || !strings.Contains(seen, "1KEY") {
 		t.Fatalf("second opening = %q", seen)
 	}
-	if env := newGetEnv(t, ta, "a"); !env.SameContent(editSeedEnv()) {
+	if env := newGetEnv(t, ta); !env.SameContent(editSeedEnv()) {
 		t.Fatalf("env changed: %+v", env)
 	}
 }
@@ -126,7 +126,7 @@ func TestEditEditorFailureKeepsVault(t *testing.T) {
 	if code := ta.runWith(newEditCmd(ta.App), "edit", "a"); code != ExitError {
 		t.Fatalf("code = %d, stderr = %q", code, ta.Err.String())
 	}
-	if env := newGetEnv(t, ta, "a"); !env.SameContent(editSeedEnv()) {
+	if env := newGetEnv(t, ta); !env.SameContent(editSeedEnv()) {
 		t.Fatalf("env changed: %+v", env)
 	}
 }

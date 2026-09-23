@@ -61,7 +61,7 @@ func tempFileName(env domain.Env) string {
 }
 
 func writePrivate(path string, data []byte, goos string) error {
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, config.FilePerm)
+	f, err := os.OpenFile(filepath.Clean(path), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, config.FilePerm)
 	if err != nil {
 		return err
 	}

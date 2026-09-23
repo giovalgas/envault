@@ -92,10 +92,19 @@ func Open(initial domain.Env, opts Options) (*Session, error) {
 		_ = s.Close()
 		return nil, fmt.Errorf("gravar arquivo temporário: %w", err)
 	}
-	for _, warning := range spec.Warnings {
-		fmt.Fprintln(opts.Stderr, warning)
+	if err := writeWarnings(opts.Stderr, spec.Warnings); err != nil {
+		return nil, errors.Join(fmt.Errorf("exibir avisos do editor: %w", err), s.Close())
 	}
 	return s, nil
+}
+
+func writeWarnings(w io.Writer, warnings []string) error {
+	for _, warning := range warnings {
+		if _, err := fmt.Fprintln(w, warning); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Session) Path() string {

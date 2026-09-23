@@ -13,7 +13,7 @@ import (
 var later = domain.Clock(func() time.Time { return baseTime.Add(time.Hour) })
 
 func TestSetValues(t *testing.T) {
-	repo := newRepo(sampleEnv("a"))
+	repo := newRepo(sampleEnv())
 	uc := NewSetValues(repo, later)
 	env, err := uc.Execute(context.Background(), "a", []domain.Var{{Key: "POOL", Value: "20"}, {Key: "NEW", Value: "x"}})
 	if err != nil {
@@ -37,7 +37,7 @@ func TestSetValues(t *testing.T) {
 }
 
 func TestUnsetKeys(t *testing.T) {
-	repo := newRepo(sampleEnv("a"))
+	repo := newRepo(sampleEnv())
 	uc := NewUnsetKeys(repo, later)
 	removed, err := uc.Execute(context.Background(), "a", []string{"POOL", "NOPE"})
 	if err != nil || strings.Join(removed, ",") != "POOL" {
@@ -56,7 +56,7 @@ func TestUnsetKeys(t *testing.T) {
 }
 
 func TestRenameEnv(t *testing.T) {
-	repo := newRepo(sampleEnv("a"))
+	repo := newRepo(sampleEnv())
 	uc := NewRenameEnv(repo, later)
 	env, err := uc.Execute(context.Background(), "a", "b")
 	if err != nil || env.Name != "b" || !env.UpdatedAt.Equal(later.Now()) {
@@ -75,10 +75,10 @@ func TestRenameEnv(t *testing.T) {
 }
 
 func TestCopyEnv(t *testing.T) {
-	repo := newRepo(sampleEnv("a"))
+	repo := newRepo(sampleEnv())
 	uc := NewCopyEnv(repo, later)
 	env, err := uc.Execute(context.Background(), "a", "b")
-	if err != nil || env.Name != "b" || !env.CreatedAt.Equal(later.Now()) || !env.SameContent(sampleEnv("a")) {
+	if err != nil || env.Name != "b" || !env.CreatedAt.Equal(later.Now()) || !env.SameContent(sampleEnv()) {
 		t.Fatalf("env = %+v, %v", env, err)
 	}
 	if !repo.snapshot.Has("a") || !repo.snapshot.Has("b") {
@@ -93,7 +93,7 @@ func TestCopyEnv(t *testing.T) {
 }
 
 func TestDeleteEnv(t *testing.T) {
-	repo := newRepo(sampleEnv("a"))
+	repo := newRepo(sampleEnv())
 	uc := NewDeleteEnv(repo)
 	if err := uc.Execute(context.Background(), "a"); err != nil || repo.snapshot.Has("a") {
 		t.Fatalf("Execute = %v", err)
@@ -137,7 +137,7 @@ func TestCreateEnvEditorUnchangedOrFails(t *testing.T) {
 
 func TestCreateEnvChecksBeforeEditing(t *testing.T) {
 	editor := editTo(domain.Env{Vars: []domain.Var{{Key: "A", Value: "1"}}})
-	uc := NewCreateEnv(newRepo(sampleEnv("a")), editor, later)
+	uc := NewCreateEnv(newRepo(sampleEnv()), editor, later)
 	if _, err := uc.Execute(context.Background(), CreateEnvInput{Env: domain.Env{Name: "Bad Name"}}); !errors.Is(err, domain.ErrInvalidName) {
 		t.Fatalf("invalid err = %v", err)
 	}
@@ -226,7 +226,7 @@ func TestImportEnvOrderOfErrors(t *testing.T) {
 }
 
 func TestEditEnv(t *testing.T) {
-	repo := newRepo(sampleEnv("a"))
+	repo := newRepo(sampleEnv())
 	editor := editTo(domain.Env{Description: "nova", Vars: []domain.Var{{Key: "POOL", Value: "20"}}})
 	result, err := NewEditEnv(repo, editor, later).Execute(context.Background(), "a")
 	if err != nil || !result.Changed || editor.isNew {
@@ -242,8 +242,8 @@ func TestEditEnv(t *testing.T) {
 }
 
 func TestEditEnvUnchangedAndErrors(t *testing.T) {
-	repo := newRepo(sampleEnv("a"))
-	result, err := NewEditEnv(repo, editTo(sampleEnv("a")), later).Execute(context.Background(), "a")
+	repo := newRepo(sampleEnv())
+	result, err := NewEditEnv(repo, editTo(sampleEnv()), later).Execute(context.Background(), "a")
 	if err != nil || result.Changed || repo.updates != 0 {
 		t.Fatalf("result = %+v, %v, updates %d", result, err, repo.updates)
 	}
@@ -259,7 +259,7 @@ func TestEditEnvUnchangedAndErrors(t *testing.T) {
 }
 
 func TestEditEnvDetectsConcurrentChange(t *testing.T) {
-	repo := newRepo(sampleEnv("a"))
+	repo := newRepo(sampleEnv())
 	concurrent := &fakeEditor{result: func(initial domain.Env) (domain.EditResult, error) {
 		if _, err := repo.snapshot.Modify("a", baseTime, func(env *domain.Env) error {
 			env.Set("X", "1")

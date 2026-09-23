@@ -69,9 +69,9 @@ func TestListEnvsFilters(t *testing.T) {
 }
 
 func TestShowEnv(t *testing.T) {
-	uc := NewShowEnv(newRepo(sampleEnv("a")))
+	uc := NewShowEnv(newRepo(sampleEnv()))
 	env, err := uc.Execute(context.Background(), "a")
-	if err != nil || env.Name != "a" || !env.SameContent(sampleEnv("a")) {
+	if err != nil || env.Name != "a" || !env.SameContent(sampleEnv()) {
 		t.Fatalf("env = %+v, %v", env, err)
 	}
 	if _, err := uc.Execute(context.Background(), "nope"); !errors.Is(err, domain.ErrEnvNotFound) {
@@ -80,7 +80,7 @@ func TestShowEnv(t *testing.T) {
 }
 
 func TestGetValue(t *testing.T) {
-	uc := NewGetValue(newRepo(sampleEnv("a")))
+	uc := NewGetValue(newRepo(sampleEnv()))
 	value, err := uc.Execute(context.Background(), "a", "POOL")
 	if err != nil || value != "10" {
 		t.Fatalf("value = %q, %v", value, err)

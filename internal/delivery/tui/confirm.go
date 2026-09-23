@@ -10,15 +10,18 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-const modalMaxWidth = 64
+const (
+	modalMaxWidth = 64
+	cancelLabel   = "cancelar"
+)
 
 type choice struct {
 	label string
 	run   func(input string) (tea.Cmd, error)
 }
 
-func cancelChoice(label string) choice {
-	return choice{label: label}
+func cancelChoice() choice {
+	return choice{label: cancelLabel}
 }
 
 type confirmModel struct {

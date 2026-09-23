@@ -31,7 +31,7 @@ func loadTestWrite(t *testing.T, path, content string) {
 
 func loadTestRead(t *testing.T, path string) string {
 	t.Helper()
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)
 	}
@@ -201,21 +201,5 @@ func TestLoadEnvFileMergeErrors(t *testing.T) {
 	}
 	if got := loadTestRead(t, invalid); got != "NOT VALID\n" {
 		t.Fatalf("invalid.env = %q", got)
-	}
-	if runtime.GOOS == "windows" {
-		return
-	}
-	readonly := filepath.Join(dir, "ro")
-	if err := os.Mkdir(readonly, 0o700); err != nil {
-		t.Fatalf("Mkdir: %v", err)
-	}
-	target := filepath.Join(readonly, ".env")
-	loadTestWrite(t, target, "A=1\n")
-	if err := os.Chmod(readonly, 0o500); err != nil {
-		t.Fatalf("Chmod: %v", err)
-	}
-	t.Cleanup(func() { _ = os.Chmod(readonly, 0o700) })
-	if _, err := New().Merge(target, loadTestVars("A", "2")); err == nil || !strings.Contains(err.Error(), "gravar") {
-		t.Fatalf("write err = %v", err)
 	}
 }

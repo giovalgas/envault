@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -35,8 +36,7 @@ func newImportCmd(app *App) *cobra.Command {
 			if result.Replaced {
 				verb = "substituída"
 			}
-			app.Infof("env %q %s com %d chave(s) de %s", name, verb, len(result.Env.Vars), path)
-			return nil
+			return app.Infof("env %q %s com %d chave(s) de %s", name, verb, len(result.Env.Vars), path)
 		},
 	}
 	importCmd.Flags().StringVar(&description, importFlagDescription, "", "descrição da env, sobrepõe a do arquivo")
@@ -47,7 +47,7 @@ func importFileSource(path string) vaultusecase.EnvSource {
 	return vaultusecase.EnvSource{
 		Name: path,
 		Read: func() ([]byte, error) {
-			data, err := os.ReadFile(path)
+			data, err := os.ReadFile(filepath.Clean(path))
 			if err != nil {
 				return nil, fmt.Errorf("ler %s: %w", path, err)
 			}

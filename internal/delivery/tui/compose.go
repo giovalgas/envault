@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -303,7 +304,7 @@ func (m Model) openTargetExists(target string) Model {
 		withChoices(
 			choice{label: "sobrescrever", run: write(composeusecase.ReplaceExisting)},
 			choice{label: "mesclar", run: write(composeusecase.MergeExisting)},
-			cancelChoice("cancelar"),
+			cancelChoice(),
 		)
 	m.modal = &modal
 	return m.setStatus("", nil)
@@ -333,7 +334,7 @@ func writtenWarning(msg composeWrittenMsg) string {
 
 func loadTemplate(dir string) (templateInfo, error) {
 	path := resolvePath(dir, templateFileName)
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(filepath.Clean(path))
 	if errors.Is(err, fs.ErrNotExist) {
 		return templateInfo{path: templateFileName}, nil
 	}

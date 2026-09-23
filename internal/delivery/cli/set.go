@@ -31,8 +31,7 @@ func newSetCmd(app *App) *cobra.Command {
 			if _, err := uc.SetValues.Execute(cmd.Context(), name, pairs); err != nil {
 				return err
 			}
-			app.Infof("definida(s) %d chave(s) em %q", len(pairs), name)
-			return nil
+			return app.Infof("definida(s) %d chave(s) em %q", len(pairs), name)
 		},
 	}
 }

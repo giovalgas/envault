@@ -21,9 +21,8 @@ func TestEditorHelperProcess(*testing.T) {
 	editortest.Serve()
 }
 
-func editorFlowOptions(isNew bool) (Options, *bytes.Buffer) {
-	var stderr bytes.Buffer
-	return Options{New: isNew, Stdin: strings.NewReader(""), Stdout: &bytes.Buffer{}, Stderr: &stderr}, &stderr
+func editorFlowOptions(isNew bool) Options {
+	return Options{New: isNew, Stdin: strings.NewReader(""), Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}}
 }
 
 func existingEditorEnv() domain.Env {
@@ -45,7 +44,7 @@ func assertEditorTempGone(t *testing.T, script *editortest.Script, n int) {
 
 func TestEditorCancelNewWithOnlyComments(t *testing.T) {
 	script := editortest.Install(t, editortest.Step{Content: "# @description: nada\n# só comentário\n\n"})
-	opts, _ := editorFlowOptions(true)
+	opts := editorFlowOptions(true)
 	_, err := Edit(context.Background(), domain.Env{Name: "nova"}, opts)
 	if !errors.Is(err, ErrCanceled) {
 		t.Fatalf("err = %v, want ErrCanceled", err)
@@ -58,7 +57,7 @@ func TestEditorCancelNewWithOnlyComments(t *testing.T) {
 
 func TestEditorUnchangedContent(t *testing.T) {
 	script := editortest.Install(t, editortest.Step{Keep: true})
-	opts, _ := editorFlowOptions(false)
+	opts := editorFlowOptions(false)
 	initial := existingEditorEnv()
 	result, err := Edit(context.Background(), initial, opts)
 	if err != nil {
@@ -76,7 +75,7 @@ func TestEditorUnchangedContent(t *testing.T) {
 
 func TestEditorReformattedButSameContent(t *testing.T) {
 	editortest.Install(t, editortest.Step{Content: "# @tags: db\n# @description: banco local\nA=valor-a-secreto\nB='valor-b-secreto'\n"})
-	opts, _ := editorFlowOptions(false)
+	opts := editorFlowOptions(false)
 	result, err := Edit(context.Background(), existingEditorEnv(), opts)
 	if err != nil || result.Changed {
 		t.Fatalf("result = %+v, err = %v", result, err)
@@ -89,7 +88,7 @@ func TestEditorParseErrorReopens(t *testing.T) {
 		editortest.Step{Content: bad},
 		editortest.Step{Content: "A=1\nOK=2\n"},
 	)
-	opts, _ := editorFlowOptions(true)
+	opts := editorFlowOptions(true)
 	result, err := Edit(context.Background(), domain.Env{Name: "nova"}, opts)
 	if err != nil {
 		t.Fatalf("Edit: %v", err)
@@ -118,7 +117,7 @@ func TestEditorRepeatedErrorKeepsSingleHeader(t *testing.T) {
 		editortest.Step{Keep: true},
 		editortest.Step{Content: ""},
 	)
-	opts, _ := editorFlowOptions(false)
+	opts := editorFlowOptions(false)
 	_, err := Edit(context.Background(), existingEditorEnv(), opts)
 	if !errors.Is(err, ErrCanceled) {
 		t.Fatalf("err = %v, want ErrCanceled", err)
@@ -135,7 +134,7 @@ func TestEditorGiveUpAfterError(t *testing.T) {
 		editortest.Step{Content: "A=1\nsem igual\n"},
 		editortest.Step{Content: ""},
 	)
-	opts, _ := editorFlowOptions(true)
+	opts := editorFlowOptions(true)
 	_, err := Edit(context.Background(), domain.Env{Name: "nova"}, opts)
 	if !errors.Is(err, ErrCanceled) {
 		t.Fatalf("err = %v, want ErrCanceled", err)
@@ -149,7 +148,7 @@ func TestEditorSuccessWithDiff(t *testing.T) {
 	script := editortest.Install(t, editortest.Step{
 		Content: "# @description: banco local\n# @tags: db, local\nA=valor-a-secreto\nB=valor-b-novo\nC=valor-c-novo\n",
 	})
-	opts, _ := editorFlowOptions(false)
+	opts := editorFlowOptions(false)
 	initial := existingEditorEnv()
 	result, err := Edit(context.Background(), initial, opts)
 	if err != nil {
@@ -177,7 +176,7 @@ func TestEditorFileIsPrivate(t *testing.T) {
 	}
 	runtimeDir := t.TempDir()
 	script := editortest.Install(t, editortest.Step{Keep: true})
-	opts, _ := editorFlowOptions(false)
+	opts := editorFlowOptions(false)
 	opts.RuntimeDir = runtimeDir
 	if _, err := Edit(context.Background(), existingEditorEnv(), opts); err != nil {
 		t.Fatalf("Edit: %v", err)
@@ -193,7 +192,7 @@ func TestEditorFileIsPrivate(t *testing.T) {
 
 func TestEditorFailureCleansUp(t *testing.T) {
 	script := editortest.Install(t, editortest.Step{Content: "A=1\n", Exit: 3})
-	opts, _ := editorFlowOptions(false)
+	opts := editorFlowOptions(false)
 	_, err := Edit(context.Background(), existingEditorEnv(), opts)
 	if !errors.Is(err, ErrEditor) {
 		t.Fatalf("err = %v, want ErrEditor", err)
@@ -204,7 +203,7 @@ func TestEditorFailureCleansUp(t *testing.T) {
 func TestEditorMissingBinary(t *testing.T) {
 	t.Setenv(EnvVisual, "")
 	t.Setenv(EnvEditor, filepath.Join(t.TempDir(), "nao-existe"))
-	opts, _ := editorFlowOptions(false)
+	opts := editorFlowOptions(false)
 	if _, err := Edit(context.Background(), existingEditorEnv(), opts); !errors.Is(err, ErrEditor) {
 		t.Fatalf("err = %v, want ErrEditor", err)
 	}
@@ -215,7 +214,7 @@ func TestEditorSignalCleansUp(t *testing.T) {
 		t.Skip("SIGTERM não é entregue a processos no Windows")
 	}
 	script := editortest.Install(t, editortest.Step{Block: true})
-	opts, _ := editorFlowOptions(false)
+	opts := editorFlowOptions(false)
 	done := make(chan error, 1)
 	go func() {
 		_, err := Edit(context.Background(), existingEditorEnv(), opts)
@@ -244,7 +243,7 @@ func TestEditorSignalCleansUp(t *testing.T) {
 
 func TestEditorAdapterPassesMode(t *testing.T) {
 	editortest.Install(t, editortest.Step{Content: "# só comentário\n"}, editortest.Step{Keep: true})
-	opts, _ := editorFlowOptions(false)
+	opts := editorFlowOptions(false)
 	adapter := New(opts)
 	if _, err := adapter.Edit(context.Background(), domain.Env{Name: "nova"}, true); !errors.Is(err, domain.ErrEditCanceled) {
 		t.Fatalf("new err = %v, want ErrEditCanceled", err)

@@ -64,7 +64,11 @@ func TestInteractiveSessionCancelsNewEnv(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	defer session.Close()
+	t.Cleanup(func() {
+		if err := session.Close(); err != nil {
+			t.Errorf("Close: %v", err)
+		}
+	})
 	if _, err := session.Review(runInteractive(t, session)); !errors.Is(err, domain.ErrEditCanceled) {
 		t.Fatalf("err = %v, want ErrEditCanceled", err)
 	}
@@ -79,7 +83,11 @@ func TestInteractiveWarningsStayOffStderr(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	defer session.Close()
+	t.Cleanup(func() {
+		if err := session.Close(); err != nil {
+			t.Errorf("Close: %v", err)
+		}
+	})
 	if stderr.Len() != 0 {
 		t.Fatalf("stderr = %q", stderr.String())
 	}

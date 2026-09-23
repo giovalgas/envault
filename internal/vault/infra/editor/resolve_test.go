@@ -41,7 +41,9 @@ func TestResolveEditorCommand(t *testing.T) {
 		{
 			"windows com barra invertida",
 			map[string]string{EnvEditor: `"C:\Program Files\Microsoft VS Code\bin\code.cmd"`},
-			"windows", `C:\Program Files\Microsoft VS Code\bin\code.cmd`, []string{"--wait"}, true,
+			"windows", `C:\Program Files\Microsoft VS Code\bin\code.cmd`,
+			[]string{"--wait"},
+			true,
 		},
 		{"windows vim exe", map[string]string{EnvEditor: `C:\tools\vim.exe`}, "windows", `C:\tools\vim.exe`, []string{"-n", "-i", "NONE"}, false},
 	}

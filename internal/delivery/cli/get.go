@@ -20,8 +20,8 @@ func newGetCmd(app *App) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Fprintln(app.Stdout, value)
-			return nil
+			_, err = fmt.Fprintln(app.Stdout, value)
+			return err
 		},
 	}
 }

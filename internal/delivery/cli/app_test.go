@@ -196,7 +196,7 @@ func (ta *testApp) initVault(t *testing.T) testVault {
 	return v
 }
 
-func (ta *testApp) seed(t *testing.T, envs ...vault.Env) testVault {
+func (ta *testApp) seed(t *testing.T, envs ...vault.Env) {
 	t.Helper()
 	v := ta.initVault(t)
 	for _, env := range envs {
@@ -204,7 +204,6 @@ func (ta *testApp) seed(t *testing.T, envs ...vault.Env) testVault {
 			t.Fatalf("Create(%s): %v", env.Name, err)
 		}
 	}
-	return v
 }
 
 func failingCmd(err error) *cobra.Command {
@@ -354,7 +353,9 @@ func TestCommandReceivesApp(t *testing.T) {
 				if _, err := buf.ReadFrom(app.Stdin); err != nil {
 					return err
 				}
-				app.Infof("lido %d bytes", buf.Len())
+				if err := app.Infof("lido %d bytes", buf.Len()); err != nil {
+					return err
+				}
 				_, err := app.Stdout.Write(buf.Bytes())
 				return err
 			},
@@ -451,7 +452,11 @@ func TestTerminalDetection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateTemp: %v", err)
 	}
-	defer regular.Close()
+	t.Cleanup(func() {
+		if err := regular.Close(); err != nil {
+			t.Errorf("Close: %v", err)
+		}
+	})
 	if isTerminal(regular) || isTerminal(&bytes.Buffer{}) {
 		t.Fatal("isTerminal true for non-terminal")
 	}
