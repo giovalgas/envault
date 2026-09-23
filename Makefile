@@ -3,7 +3,7 @@ PKG := ./cmd/envault
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 FUZZTIME ?= 30s
-SKILL_CONTENT := internal/skill/content.go
+SKILL_CONTENT := internal/skill/domain/content.go
 
 .PHONY: build test lint fuzz cover release-snapshot skill-sync skill-check
 
@@ -17,7 +17,7 @@ lint:
 	golangci-lint run ./...
 
 fuzz:
-	go test -run='^$$' -fuzz=FuzzParse -fuzztime=$(FUZZTIME) ./internal/dotenv
+	go test -run='^$$' -fuzz=FuzzParse -fuzztime=$(FUZZTIME) ./internal/shared/dotenv
 
 cover:
 	go test -coverprofile=coverage.out ./...

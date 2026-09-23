@@ -14,8 +14,8 @@ import (
 
 const (
 	defaultSource  = "skill/envault/SKILL.md"
-	defaultOutput  = "internal/skill/content.go"
-	packageName    = "skill"
+	defaultOutput  = "internal/skill/domain/content.go"
+	packageName    = "domain"
 	constantName   = "content"
 	outputFilePerm = 0o644
 )
