@@ -14,6 +14,24 @@ func Execute(ctx context.Context, app *App, args []string) int {
 
 func commands(app *App) []*cobra.Command {
 	return []*cobra.Command{
+		newInitCmd(app),
+		newListCmd(app),
+		newShowCmd(app),
+		newGetCmd(app),
+		newSetCmd(app),
+		newUnsetCmd(app),
+		newNewCmd(app),
+		newEditCmd(app),
+		newImportCmd(app),
+		newRenameCmd(app),
+		newCopyCmd(app),
+		newDeleteCmd(app),
+		newPlanCmd(app),
+		newLoadCmd(app),
+		newExecCmd(app),
+		newShellCmd(app),
+		newSkillCmd(app),
+		newKeyCmd(app),
 		newCompletionCmd(app),
 	}
 }
@@ -29,12 +47,23 @@ func newRootCmd(app *App, subcommands ...*cobra.Command) *cobra.Command {
 		SilenceUsage:      true,
 		CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return cmd.Help()
+			if !rootOpensTUI(app) {
+				return cmd.Help()
+			}
+			session, err := app.TUISession()
+			if err != nil {
+				return err
+			}
+			return app.Wire.TUI(cmd.Context(), session)
 		},
 	}
 	root.SetVersionTemplate("{{.Version}}\n")
 	root.AddCommand(subcommands...)
 	return root
+}
+
+func rootOpensTUI(app *App) bool {
+	return app.Wire.TUI != nil && app.Interactive()
 }
 
 func newCompletionCmd(app *App) *cobra.Command {

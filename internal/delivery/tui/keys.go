@@ -20,6 +20,10 @@ type keyMap struct {
 	Delete     key.Binding
 	MoveUp     key.Binding
 	MoveDown   key.Binding
+	Expand     key.Binding
+	NextPane   key.Binding
+	PrevPane   key.Binding
+	Write      key.Binding
 	Filter     key.Binding
 	Help       key.Binding
 	Quit       key.Binding
@@ -46,6 +50,10 @@ func defaultKeyMap() keyMap {
 		Delete:     key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "apagar")),
 		MoveUp:     key.NewBinding(key.WithKeys("K"), key.WithHelp("K", "subir na montagem")),
 		MoveDown:   key.NewBinding(key.WithKeys("J"), key.WithHelp("J", "descer na montagem")),
+		Expand:     key.NewBinding(key.WithKeys(" "), key.WithHelp("space", "expandir conflito")),
+		NextPane:   key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "próximo painel")),
+		PrevPane:   key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("shift+tab", "painel anterior")),
+		Write:      key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "gravar montagem")),
 		Filter:     key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filtrar")),
 		Help:       key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "ajuda")),
 		Quit:       key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q/ctrl+c", "sair/voltar")),
@@ -90,6 +98,13 @@ func (k keyMap) detailHelp() helpBindings {
 	}
 }
 
+func (k keyMap) composeHelp() helpBindings {
+	return helpBindings{
+		short: []key.Binding{k.Help, k.Back, k.Up, k.Down, k.MoveUp, k.MoveDown, k.NextPane, k.Expand, k.Write},
+		full:  k.allGroups(),
+	}
+}
+
 func (k keyMap) modalHelp() helpBindings {
 	return helpBindings{
 		short: []key.Binding{k.Confirm, k.NextChoice, k.Back},
@@ -109,7 +124,7 @@ func (k keyMap) allGroups() [][]key.Binding {
 		{k.Up, k.Down, k.Mark, k.Compose, k.Open},
 		{k.Reveal, k.Copy},
 		{k.New, k.Edit, k.Duplicate, k.Rename, k.Import, k.Delete},
-		{k.MoveUp, k.MoveDown},
+		{k.MoveUp, k.MoveDown, k.NextPane, k.Expand, k.Write},
 		{k.Filter, k.Help, k.Quit, k.Back},
 	}
 }

@@ -28,16 +28,7 @@ func (uc *EditEnv) Execute(ctx context.Context, name string) (domain.EditResult,
 	if !result.Changed {
 		return result, nil
 	}
-	_, err = modifyEnv(ctx, uc.repo, uc.clock, name, func(env *domain.Env) error {
-		if !env.SameContent(initial) {
-			return domain.ErrEditConflict
-		}
-		env.Description = result.Env.Description
-		env.Tags = result.Env.Tags
-		env.Vars = result.Env.Vars
-		return nil
-	})
-	if err != nil {
+	if _, err := applyEdit(ctx, uc.repo, uc.clock, initial, result.Env); err != nil {
 		return domain.EditResult{}, err
 	}
 	return result, nil

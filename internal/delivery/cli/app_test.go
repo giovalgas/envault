@@ -93,6 +93,7 @@ func (ta *testApp) compose(cfg config.Config, streams Streams) (testVault, error
 			Stdout:     streams.Stdout,
 			Stderr:     streams.Stderr,
 		}),
+		Sessions: editor.NewInteractive(editor.Options{RuntimeDir: cfg.RuntimeDir}),
 	})
 	return testVault{repo: repo, uc: uc}, nil
 }

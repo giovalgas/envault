@@ -50,7 +50,7 @@ func (l listModel) setEnvs(envs []vault.Env, focus string) listModel {
 	l.loaded = true
 	l.failed = false
 	l.marked = slices.DeleteFunc(slices.Clone(l.marked), func(name string) bool {
-		return !slices.ContainsFunc(envs, func(e vault.Env) bool { return e.Name == name })
+		return !l.hasEnv(name)
 	})
 	l = l.applyFilter()
 	l = l.focusName(focus)
@@ -145,6 +145,10 @@ func (l listModel) focused() (vault.Env, bool) {
 		return vault.Env{}, false
 	}
 	return l.envs[l.visible[l.cursor]], true
+}
+
+func (l listModel) hasEnv(name string) bool {
+	return slices.ContainsFunc(l.envs, func(e vault.Env) bool { return e.Name == name })
 }
 
 func (l listModel) isMarked(name string) bool {

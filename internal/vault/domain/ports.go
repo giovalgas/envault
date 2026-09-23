@@ -1,6 +1,9 @@
 package domain
 
-import "context"
+import (
+	"context"
+	"io"
+)
 
 type EnvRepository interface {
 	Location() string
@@ -23,4 +26,22 @@ type EditResult struct {
 
 type Editor interface {
 	Edit(ctx context.Context, initial Env, isNew bool) (EditResult, error)
+}
+
+type EditorProcess interface {
+	Run() error
+	SetStdin(r io.Reader)
+	SetStdout(w io.Writer)
+	SetStderr(w io.Writer)
+}
+
+type EditorSession interface {
+	Process(ctx context.Context) EditorProcess
+	Review(runErr error) (EditResult, error)
+	Warnings() []string
+	Close() error
+}
+
+type SessionEditor interface {
+	Open(initial Env, isNew bool) (EditorSession, error)
 }

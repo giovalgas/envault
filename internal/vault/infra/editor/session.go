@@ -26,7 +26,7 @@ const (
 
 var (
 	ErrCanceled = domain.ErrEditCanceled
-	ErrReopen   = errors.New("conteúdo inválido, reabra o editor")
+	ErrReopen   = domain.ErrEditReopen
 	ErrEditor   = errors.New("o editor terminou com erro")
 )
 

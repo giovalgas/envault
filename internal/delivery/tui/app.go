@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/atotto/clipboard"
@@ -70,9 +71,10 @@ type ActionRequest struct {
 type ActionHandler func(ctx context.Context, req ActionRequest) tea.Cmd
 
 type ResultMsg struct {
-	Status string
-	Focus  string
-	Err    error
+	Status  string
+	Warning string
+	Focus   string
+	Err     error
 }
 
 type Options struct {
@@ -90,13 +92,15 @@ type screen int
 const (
 	screenList screen = iota
 	screenDetail
+	screenCompose
 )
 
 type envsLoadedMsg struct {
-	envs   []vault.Env
-	err    error
-	focus  string
-	status string
+	envs    []vault.Env
+	err     error
+	focus   string
+	status  string
+	warning string
 }
 
 type detailLoadedMsg struct {
@@ -112,23 +116,25 @@ type statusMsg struct {
 var errNameMismatch = errors.New("o nome digitado não confere")
 
 type Model struct {
-	ctx       context.Context
-	store     Store
-	clipboard func(string) error
-	actions   map[Action]ActionHandler
-	logger    *log.Logger
-	keys      keyMap
-	styles    styles
-	help      help.Model
-	width     int
-	height    int
-	screen    screen
-	list      listModel
-	detail    detailModel
-	modal     *confirmModel
-	showHelp  bool
-	status    string
-	statusErr bool
+	ctx        context.Context
+	store      Store
+	clipboard  func(string) error
+	actions    map[Action]ActionHandler
+	logger     *log.Logger
+	keys       keyMap
+	styles     styles
+	help       help.Model
+	width      int
+	height     int
+	screen     screen
+	list       listModel
+	detail     detailModel
+	compose    composeModel
+	modal      *confirmModel
+	showHelp   bool
+	status     string
+	statusErr  bool
+	statusWarn bool
 }
 
 func New(ctx context.Context, store Store, opts Options) Model {
@@ -195,10 +201,14 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m Model) loadCmd(focus, status string) tea.Cmd {
+	return m.reloadCmd(ResultMsg{Focus: focus, Status: status})
+}
+
+func (m Model) reloadCmd(result ResultMsg) tea.Cmd {
 	ctx, store := m.ctx, m.store
 	return func() tea.Msg {
 		envs, err := store.List(ctx)
-		return envsLoadedMsg{envs: envs, err: err, focus: focus, status: status}
+		return envsLoadedMsg{envs: envs, err: err, focus: result.Focus, status: result.Status, warning: result.Warning}
 	}
 }
 
@@ -254,6 +264,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.onResult(msg)
 	case statusMsg:
 		return m.setStatus(msg.text, msg.err), nil
+	case newEnvPromptMsg:
+		return m.openNewEnv(msg), nil
+	case editorOpenMsg:
+		return m.onEditorOpen(msg)
+	case editorDoneMsg:
+		return m.onEditorDone(msg)
+	case importPromptMsg:
+		return m.openImportPath(msg), nil
+	case importNameMsg:
+		return m.openImportName(msg), nil
+	case importReplaceMsg:
+		return m.openImportReplace(msg), nil
+	case composeOpenMsg:
+		return m.openCompose(msg)
+	case composePlanMsg:
+		return m.onComposePlan(msg), nil
+	case composeWrittenMsg:
+		return m.onComposeWritten(msg)
 	case tea.KeyMsg:
 		return m.handleKey(msg)
 	}
@@ -271,10 +299,17 @@ func (m Model) onEnvsLoaded(msg envsLoadedMsg) Model {
 	if m.screen == screenDetail {
 		m = m.refreshDetail(msg.envs)
 	}
-	if msg.status != "" {
+	switch {
+	case msg.warning != "":
+		m = m.setWarning(joinStatus(msg.status, msg.warning))
+	case msg.status != "":
 		m = m.setStatus(msg.status, nil)
 	}
 	return m
+}
+
+func joinStatus(parts ...string) string {
+	return strings.Join(slices.DeleteFunc(parts, func(s string) bool { return s == "" }), "; ")
 }
 
 func (m Model) refreshDetail(envs []vault.Env) Model {
@@ -306,10 +341,11 @@ func (m Model) onResult(msg ResultMsg) (tea.Model, tea.Cmd) {
 		m.logger.Printf("ação falhou: %v", msg.Err)
 		return m.setStatus("", msg.Err), nil
 	}
-	return m, m.loadCmd(msg.Focus, msg.Status)
+	return m, m.reloadCmd(msg)
 }
 
 func (m Model) setStatus(text string, err error) Model {
+	m.statusWarn = false
 	if err != nil {
 		m.status = err.Error()
 		m.statusErr = true
@@ -317,6 +353,12 @@ func (m Model) setStatus(text string, err error) Model {
 	}
 	m.status = text
 	m.statusErr = false
+	return m
+}
+
+func (m Model) setWarning(text string) Model {
+	m = m.setStatus(text, nil)
+	m.statusWarn = true
 	return m
 }
 
@@ -336,8 +378,11 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
-	if m.screen == screenDetail {
+	switch m.screen {
+	case screenDetail:
 		return m.updateDetail(msg)
+	case screenCompose:
+		return m.updateCompose(msg)
 	}
 	return m.updateList(msg)
 }
@@ -515,6 +560,8 @@ func (m Model) View() string {
 		body = m.fullHelpView(bodyHeight)
 	case m.screen == screenDetail:
 		body = m.detail.view(m.styles, m.width, bodyHeight)
+	case m.screen == screenCompose:
+		body = m.compose.view(m.styles, m.width, bodyHeight)
 	default:
 		body = m.list.view(m.styles, m.width, bodyHeight)
 	}
@@ -542,8 +589,11 @@ func (m Model) statusView() string {
 		return ""
 	}
 	text := truncate(m.status, m.width)
-	if m.statusErr {
+	switch {
+	case m.statusErr:
 		return m.styles.errorText.Render(text)
+	case m.statusWarn:
+		return m.styles.warnText.Render(text)
 	}
 	return m.styles.status.Render(text)
 }
@@ -556,6 +606,8 @@ func (m Model) activeHelp() help.KeyMap {
 		return m.keys.helpScreenHelp()
 	case m.screen == screenDetail:
 		return m.keys.detailHelp()
+	case m.screen == screenCompose:
+		return m.keys.composeHelp()
 	case m.list.filtering:
 		return m.keys.filterHelp()
 	default:

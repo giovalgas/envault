@@ -2,7 +2,6 @@ package usecase
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/giovalgas/envault/internal/vault/domain"
 )
@@ -33,23 +32,14 @@ func (uc *CreateEnv) Execute(ctx context.Context, in CreateEnvInput) (CreateEnvR
 	if err := in.Env.Validate(); err != nil {
 		return CreateEnvResult{}, err
 	}
-	snapshot, err := uc.repo.Load(ctx)
-	if err != nil {
+	if err := ensureAbsent(ctx, uc.repo, in.Env.Name); err != nil {
 		return CreateEnvResult{}, err
-	}
-	if snapshot.Has(in.Env.Name) {
-		return CreateEnvResult{}, fmt.Errorf("%w: %q", domain.ErrEnvExists, in.Env.Name)
 	}
 	env, ok, err := uc.build(ctx, in)
 	if err != nil || !ok {
 		return CreateEnvResult{}, err
 	}
-	var created domain.Env
-	err = uc.repo.Update(ctx, func(s *domain.Snapshot) error {
-		var err error
-		created, err = s.Create(env, uc.clock.Now())
-		return err
-	})
+	created, err := storeNewEnv(ctx, uc.repo, uc.clock, env)
 	if err != nil {
 		return CreateEnvResult{}, err
 	}

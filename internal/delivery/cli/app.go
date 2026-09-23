@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -33,11 +34,15 @@ type VaultUseCases struct {
 	RenameEnv *vaultusecase.RenameEnv
 	CopyEnv   *vaultusecase.CopyEnv
 	DeleteEnv *vaultusecase.DeleteEnv
+
+	BeginCreateEnv *vaultusecase.BeginCreateEnv
+	BeginEditEnv   *vaultusecase.BeginEditEnv
 }
 
 type VaultDeps struct {
 	Repository vault.EnvRepository
 	Editor     vault.Editor
+	Sessions   vault.SessionEditor
 	Clock      vault.Clock
 }
 
@@ -56,6 +61,9 @@ func NewVaultUseCases(deps VaultDeps) VaultUseCases {
 		RenameEnv: vaultusecase.NewRenameEnv(repo, clock),
 		CopyEnv:   vaultusecase.NewCopyEnv(repo, clock),
 		DeleteEnv: vaultusecase.NewDeleteEnv(repo),
+
+		BeginCreateEnv: vaultusecase.NewBeginCreateEnv(repo, deps.Sessions, clock),
+		BeginEditEnv:   vaultusecase.NewBeginEditEnv(repo, deps.Sessions, clock),
 	}
 }
 
@@ -96,6 +104,15 @@ type Wiring struct {
 	KeyMigration func(cfg config.Config) *vaultusecase.MigrateKey
 	Compose      func(vault VaultOpener) ComposeUseCases
 	Skill        func() *skillusecase.InstallSkill
+	TUI          func(ctx context.Context, session TUISession) error
+}
+
+type TUISession struct {
+	Vault   VaultUseCases
+	Compose ComposeUseCases
+	Stdin   io.Reader
+	Stdout  io.Writer
+	Debug   bool
 }
 
 type App struct {
@@ -146,6 +163,25 @@ func (a *App) KeyMigration() (*vaultusecase.MigrateKey, error) {
 
 func (a *App) Compose() ComposeUseCases {
 	return a.Wire.Compose(a.Vault)
+}
+
+func (a *App) TUISession() (TUISession, error) {
+	cfg, err := a.Config()
+	if err != nil {
+		return TUISession{}, err
+	}
+	uc, err := a.Wire.Vault(cfg, Streams{Stdin: a.Stdin, Stdout: a.Stdout, Stderr: a.Stderr})
+	if err != nil {
+		return TUISession{}, err
+	}
+	opener := func() (VaultUseCases, error) { return uc, nil }
+	return TUISession{
+		Vault:   uc,
+		Compose: a.Wire.Compose(opener),
+		Stdin:   a.Stdin,
+		Stdout:  a.Stdout,
+		Debug:   cfg.Debug,
+	}, nil
 }
 
 func (a *App) StdinIsTerminal() bool {

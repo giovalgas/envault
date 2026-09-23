@@ -139,6 +139,10 @@ func (s *session) finish() (Model, string) {
 func (s *session) collect() (Model, string) {
 	s.t.Helper()
 	final := s.tm.FinalModel(s.t, teatest.WithFinalTimeout(waitTimeout))
+	for deadline := time.Now().Add(waitTimeout); final == nil && time.Now().Before(deadline); {
+		time.Sleep(time.Millisecond)
+		final = s.tm.FinalModel(s.t)
+	}
 	rest, err := io.ReadAll(s.tm.FinalOutput(s.t, teatest.WithFinalTimeout(waitTimeout)))
 	if err != nil {
 		s.t.Fatalf("ler saída: %v", err)

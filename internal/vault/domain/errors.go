@@ -19,6 +19,7 @@ var (
 	ErrVarNotFound        = errors.New("chave não encontrada")
 	ErrEditConflict       = errors.New("a env mudou no cofre durante a edição; nada foi gravado")
 	ErrEditCanceled       = errors.New("edição cancelada")
+	ErrEditReopen         = errors.New("conteúdo inválido, reabra o editor")
 )
 
 var (

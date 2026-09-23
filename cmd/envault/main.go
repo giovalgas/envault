@@ -10,6 +10,7 @@ import (
 	"github.com/giovalgas/envault/internal/compose/infra/gitignore"
 	"github.com/giovalgas/envault/internal/compose/infra/vaultsource"
 	"github.com/giovalgas/envault/internal/delivery/cli"
+	"github.com/giovalgas/envault/internal/delivery/tui"
 	"github.com/giovalgas/envault/internal/shared/config"
 	skillinfra "github.com/giovalgas/envault/internal/skill/infra"
 	skillusecase "github.com/giovalgas/envault/internal/skill/usecase"
@@ -29,7 +30,7 @@ func main() {
 func run() int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	wiring := cli.Wiring{Vault: wireVault, KeyMigration: wireKeyMigration, Compose: wireCompose, Skill: wireSkill}
+	wiring := cli.Wiring{Vault: wireVault, KeyMigration: wireKeyMigration, Compose: wireCompose, Skill: wireSkill, TUI: runTUI}
 	return cli.Execute(ctx, cli.NewApp(version, wiring), os.Args[1:])
 }
 
@@ -46,6 +47,7 @@ func wireVault(cfg config.Config, streams cli.Streams) (cli.VaultUseCases, error
 			Stdout:     streams.Stdout,
 			Stderr:     streams.Stderr,
 		}),
+		Sessions: editor.NewInteractive(editor.Options{RuntimeDir: cfg.RuntimeDir}),
 	}), nil
 }
 
@@ -60,6 +62,30 @@ func wireCompose(vault cli.VaultOpener) cli.ComposeUseCases {
 		Envs:      vaultsource.New(vault.ListEnvs),
 		Files:     envfile.New(),
 		Gitignore: gitignore.New(),
+	})
+}
+
+func runTUI(ctx context.Context, session cli.TUISession) error {
+	vault, compose := session.Vault, session.Compose
+	store := tui.VaultStore{
+		ListEnvs:  vault.ListEnvs,
+		ShowEnv:   vault.ShowEnv,
+		CopyEnv:   vault.CopyEnv,
+		RenameEnv: vault.RenameEnv,
+		DeleteEnv: vault.DeleteEnv,
+	}
+	actions := tui.Actions(tui.Deps{
+		BeginCreateEnv: vault.BeginCreateEnv,
+		BeginEditEnv:   vault.BeginEditEnv,
+		ImportEnv:      vault.ImportEnv,
+		PlanLoad:       compose.PlanLoad,
+		LoadEnvFile:    compose.LoadEnvFile,
+	})
+	return tui.Run(ctx, store, tui.Options{
+		Actions: actions,
+		Debug:   session.Debug,
+		Input:   session.Stdin,
+		Output:  session.Stdout,
 	})
 }
 
