@@ -81,7 +81,7 @@ func (h helpBindings) FullHelp() [][]key.Binding {
 
 func (k keyMap) listHelp() helpBindings {
 	return helpBindings{
-		short: []key.Binding{k.Help, k.Quit, k.Open, k.Mark, k.Filter, k.Compose, k.New, k.Edit, k.Duplicate, k.Rename, k.Import, k.Delete},
+		short: []key.Binding{k.Mark, k.Compose, k.New, k.Filter, k.Help, k.Quit},
 		full:  k.allGroups(),
 	}
 }
@@ -95,14 +95,14 @@ func (k keyMap) filterHelp() helpBindings {
 
 func (k keyMap) detailHelp() helpBindings {
 	return helpBindings{
-		short: []key.Binding{k.Help, k.Quit, k.Up, k.Down, k.Reveal, k.Copy},
+		short: []key.Binding{k.Up, k.Down, k.Reveal, k.Copy, k.Help, k.Back},
 		full:  k.allGroups(),
 	}
 }
 
 func (k keyMap) composeHelp() helpBindings {
 	return helpBindings{
-		short: []key.Binding{k.Help, k.Back, k.Up, k.Down, k.MoveUp, k.MoveDown, k.NextPane, k.Expand, k.Target, k.Write},
+		short: []key.Binding{k.MoveUp, k.MoveDown, k.NextPane, k.Write, k.Help, k.Back},
 		full:  k.allGroups(),
 	}
 }

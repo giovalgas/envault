@@ -14,6 +14,7 @@ import (
 
 	"github.com/giovalgas/envault/internal/compose/infra/envfile"
 	"github.com/giovalgas/envault/internal/compose/infra/gitignore"
+	"github.com/giovalgas/envault/internal/compose/infra/selectionfile"
 	"github.com/giovalgas/envault/internal/compose/infra/vaultsource"
 	composeusecase "github.com/giovalgas/envault/internal/compose/usecase"
 	"github.com/giovalgas/envault/internal/shared/config"
@@ -115,12 +116,15 @@ func testSkill() *skillusecase.InstallSkill {
 	return skillusecase.NewInstallSkill(skillinfra.NewFileWriter(), skillinfra.NewHomeDir())
 }
 
-func testCompose(vault VaultOpener) ComposeUseCases {
+func testCompose(cfg ConfigLoader, vault VaultOpener) ComposeUseCases {
+	source := vaultsource.New(vault.ListEnvs)
 	return NewComposeUseCases(ComposeDeps{
-		Envs:      vaultsource.New(vault.ListEnvs),
-		Files:     envfile.New(),
-		Exports:   envfile.New(),
-		Gitignore: gitignore.New(),
+		Envs:       source,
+		Catalog:    source,
+		Files:      envfile.New(),
+		Exports:    envfile.New(),
+		Gitignore:  gitignore.New(),
+		Selections: selectionfile.New(cfg.Dir),
 	})
 }
 

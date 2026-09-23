@@ -334,9 +334,12 @@ func (m Model) reorderCompose(delta int) (tea.Model, tea.Cmd) {
 	if !moved {
 		return m, nil
 	}
-	var cmd tea.Cmd
-	m.compose, cmd = compose.planCmd(m.ctx)
-	return m, cmd
+	var plan, save tea.Cmd
+	m.compose, plan = compose.planCmd(m.ctx)
+	before := m.list.marked
+	m.list = m.list.withMarked(m.compose.order)
+	m, save = m.persistSelection(before)
+	return m, tea.Batch(plan, save)
 }
 
 func (m Model) confirmCompose() (tea.Model, tea.Cmd) {
@@ -365,7 +368,7 @@ func (m Model) onComposeExported(msg composeExportedMsg) (tea.Model, tea.Cmd) {
 		return m.setStatus("", fmt.Errorf("exportar no terminal: %w", msg.err)), nil
 	}
 	m.exported = exportedText(msg.result)
-	return m, tea.Quit
+	return m, m.quitCmd()
 }
 
 func exportedText(result composeusecase.LoadShellExportsResult) string {

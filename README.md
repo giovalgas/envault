@@ -62,7 +62,7 @@ Rodar `envault` sem argumentos, com o terminal em modo interativo, abre a TUI. S
 
 ### Telas
 
-1. **Lista** (tela inicial). Duas colunas: à esquerda, as envs com nome, número de chaves, última edição e marcador de seleção; à direita, descrição, tags e chaves da env focada, com valores sempre mascarados. Se o cofre não existir no local resolvido, a TUI o cria antes de listar e mostra no status onde ficou o `vault.enc`; a CLI continua saindo com o código 4 nessa mesma situação.
+1. **Lista** (tela inicial). Duas colunas: à esquerda, as envs com nome, número de chaves, última edição e marcador de seleção; à direita, descrição, tags e chaves da env focada, com valores sempre mascarados. Um painel fixo abaixo do cabeçalho mostra a seleção global, na ordem de marcação, por exemplo `seleção, a última vence: 1. stripe-test  2. postgres-local`; cada env marcada leva o número correspondente (`[1]`, `[2]`) na lista, e as demais ficam com `[ ]`. Se o cofre não existir no local resolvido, a TUI o cria antes de listar e mostra no status onde ficou o `vault.enc`; a CLI continua saindo com o código 4 nessa mesma situação.
 2. **Detalhe**. Tabela de chaves e valores mascarados, em tela cheia.
 3. **Montagem** (envs marcadas). Lista ordenável, prévia do resultado com origem de cada chave e indicador de conflito, checklist de chaves do `.env.example` quando existir, e escolha de destino. Com o wrapper de shell instalado, o destino padrão é o terminal atual e `t` alterna para arquivo; sem o wrapper, só arquivo está disponível e a tela orienta como instalar o `shell-init`. No destino arquivo, se ele já existir, a tela oferece sobrescrever, mesclar ou cancelar.
 4. **Confirmações**. Modal reutilizável para apagar, sobrescrever e revisar o diff pós-edição.
@@ -89,7 +89,13 @@ Rodar `envault` sem argumentos, com o terminal em modo interativo, abre a TUI. S
 | `?` | Ajuda com todos os atalhos |
 | `q`, `ctrl+c` | Sair ou voltar |
 
+O rodapé de cada tela mostra no máximo seis atalhos; `?` abre a ajuda com a lista completa acima.
+
 Nenhuma tela da TUI mostra um valor sem confirmação explícita de `v`, e copiar com `y` nunca imprime o valor na tela.
+
+### Seleção
+
+A seleção é global: as mesmas envs marcadas aparecem em qualquer sessão da TUI, na ordem em que foram marcadas, e a última marcação é a que vence em caso de conflito de chave na montagem. A cada marcar, desmarcar, reordenar (`K`/`J`), renomear ou apagar uma env, a TUI grava a seleção em `selection.json`, no diretório do cofre, só com os nomes e com permissão `0600`. Ao abrir, a TUI restaura essa seleção; nomes que não existem mais no cofre saem dela e a tela mostra um aviso.
 
 ## Referência da CLI
 
@@ -114,6 +120,7 @@ Regras gerais: mensagens para humanos vão em stderr, dados em stdout. Com `--js
 | `envault shell-init bash\|zsh\|fish` | Imprime a função de shell que faz `load` e a TUI exportarem no terminal atual. Instale com `eval "$(envault shell-init zsh)"` (ou `bash`) no rc do shell, ou `envault shell-init fish \| source` no `config.fish`. |
 | `envault exec -e a,b [--template f] [--no-template] [--only-template] [--] <comando...>` | Roda um comando com as variáveis combinadas injetadas no ambiente, sem criar arquivo. O `--` antes do comando é opcional. |
 | `envault shell <env>... [--shell bash\|zsh\|fish]` | Imprime uma linha `export` por variável, para uso com `eval`. Sem `--shell`, detecta o dialeto pela variável `$SHELL`; se não reconhecer, usa `bash`. |
+| `envault selection [--json]` | Mostra a seleção gravada pela TUI, na ordem de marcação. Sem `--json`, imprime um nome por linha no stdout; avisos de env fora do cofre e "nenhuma env selecionada" vão para stderr. Nunca imprime valores. |
 | `envault skill install [--dir d]` | Instala a Skill em `~/.claude/skills/envault/SKILL.md`, ou no diretório passado em `--dir`. |
 | `envault key migrate` | Move a chave do arquivo para o keychain do sistema operacional. |
 | `envault completion`, `envault --version` | Padrão do Cobra; a versão é definida em tempo de build. |
@@ -172,6 +179,30 @@ Depois de gravar, `load` verifica se o destino está coberto pelo `.gitignore` d
 Sem `--out`, `target` vira `{ "mode": "shell" }`, o destino do `load` no terminal.
 
 `load --json` devolve o mesmo formato de `plan`, com o campo adicional `"mode"`: `"created"`, `"overwritten"` ou `"merged"` com `--out`, ou `"exported"` quando exporta no terminal pelo wrapper de shell.
+
+### JSON de `selection`
+
+```json
+{
+  "schema_version": 1,
+  "envs": ["b", "a"],
+  "missing": ["sumiu"],
+  "updated_at": "2026-09-23T12:00:00Z"
+}
+```
+
+Sem seleção gravada, `envs` e `missing` vêm vazios e `updated_at` vem `null`; o comando sai com o código 0 mesmo assim. Sem cofre inicializado, `selection` sai com o código 4.
+
+### Seleção por outro terminal ou agente
+
+Com a TUI aberta num terminal, marcando envs com `space`, outro terminal ou um agente lê a mesma seleção pela CLI, sem precisar saber os nomes de antemão:
+
+```
+envault selection --json
+envault load $(envault selection) --out .env
+```
+
+`envault load` aceita várias envs na ordem de precedência da linha de comando, e o modo humano de `selection` imprime um nome por linha, então a expansão `$(envault selection)` passa exatamente essa lista como argumentos.
 
 ### Códigos de saída
 

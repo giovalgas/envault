@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 
+	composeusecase "github.com/giovalgas/envault/internal/compose/usecase"
 	vault "github.com/giovalgas/envault/internal/vault/domain"
 	vaultusecase "github.com/giovalgas/envault/internal/vault/usecase"
 )
@@ -35,4 +36,24 @@ func (s VaultStore) Rename(ctx context.Context, oldName, newName string) (vault.
 
 func (s VaultStore) Delete(ctx context.Context, name string) error {
 	return s.DeleteEnv.Execute(ctx, name)
+}
+
+type SelectionUseCases struct {
+	GetSelection  *composeusecase.GetSelection
+	SaveSelection *composeusecase.SaveSelection
+}
+
+var _ SelectionStore = SelectionUseCases{}
+
+func (s SelectionUseCases) Load(ctx context.Context) (SavedSelection, error) {
+	result, err := s.GetSelection.Execute(ctx)
+	if err != nil {
+		return SavedSelection{}, err
+	}
+	return SavedSelection{Envs: result.Selection.Envs, Missing: result.Missing}, nil
+}
+
+func (s SelectionUseCases) Save(ctx context.Context, names []string) error {
+	_, err := s.SaveSelection.Execute(ctx, names)
+	return err
 }

@@ -89,6 +89,7 @@ type Options struct {
 	Output    io.Writer
 	Report    io.Writer
 	InitVault InitVaultFunc
+	Selection SelectionStore
 }
 
 type screen int
@@ -105,6 +106,7 @@ type envsLoadedMsg struct {
 	focus   string
 	status  string
 	warning string
+	restore *restoredSelection
 }
 
 type detailLoadedMsg struct {
@@ -147,6 +149,8 @@ type Model struct {
 	statusWarn bool
 	initVault  InitVaultFunc
 	exported   string
+	selection  *selectionSaver
+	saveSeq    int
 }
 
 func New(ctx context.Context, store Store, opts Options) Model {
@@ -175,6 +179,7 @@ func New(ctx context.Context, store Store, opts Options) Model {
 		height:    defaultHeight,
 		list:      newListModel(),
 		initVault: opts.InitVault,
+		selection: newSelectionSaver(opts.Selection),
 	}
 }
 
@@ -215,6 +220,9 @@ func Run(ctx context.Context, store Store, opts Options) (err error) {
 
 func reportExported(w io.Writer, final tea.Model) error {
 	m, ok := final.(Model)
+	if ok {
+		m.selection.wait()
+	}
 	if !ok || m.exported == "" || w == nil {
 		return nil
 	}
@@ -231,7 +239,7 @@ func (m Model) Init() tea.Cmd {
 func (m Model) initCmd() tea.Cmd {
 	initVault := m.initVault
 	if initVault == nil {
-		return m.loadCmd("", "")
+		return m.firstLoadCmd("")
 	}
 	ctx := m.ctx
 	return func() tea.Msg {
@@ -276,7 +284,8 @@ func (m Model) renameEnvCmd(oldName, newName string) tea.Cmd {
 		if _, err := store.Rename(ctx, oldName, newName); err != nil {
 			return ResultMsg{Err: fmt.Errorf("renomear %q: %w", oldName, err)}
 		}
-		return ResultMsg{Status: fmt.Sprintf("%s renomeada para %s", oldName, newName), Focus: newName}
+		result := ResultMsg{Status: fmt.Sprintf("%s renomeada para %s", oldName, newName), Focus: newName}
+		return envRenamedMsg{oldName: oldName, newName: newName, result: result}
 	}
 }
 
@@ -299,7 +308,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case vaultInitializedMsg:
 		return m.onVaultInitialized(msg)
 	case envsLoadedMsg:
-		return m.onEnvsLoaded(msg), nil
+		return m.onEnvsLoaded(msg)
+	case envRenamedMsg:
+		return m.onEnvRenamed(msg)
+	case selectionSavedMsg:
+		return m.onSelectionSaved(msg), nil
 	case detailLoadedMsg:
 		return m.onDetailLoaded(msg), nil
 	case ResultMsg:
@@ -341,16 +354,17 @@ func (m Model) onVaultInitialized(msg vaultInitializedMsg) (tea.Model, tea.Cmd) 
 	if msg.created {
 		status = fmt.Sprintf("cofre criado em %s", msg.location)
 	}
-	return m, m.loadCmd("", status)
+	return m, m.firstLoadCmd(status)
 }
 
-func (m Model) onEnvsLoaded(msg envsLoadedMsg) Model {
+func (m Model) onEnvsLoaded(msg envsLoadedMsg) (Model, tea.Cmd) {
 	if msg.err != nil {
 		m.logger.Printf("carregar envs: %v", msg.err)
 		m.list = m.list.markFailed()
-		return m.setStatus("", fmt.Errorf("carregar cofre: %w", msg.err))
+		return m.setStatus("", fmt.Errorf("carregar cofre: %w", msg.err)), nil
 	}
 	m.logger.Printf("envs carregadas: %d", len(msg.envs))
+	before := m.list.marked
 	m.list = m.list.setEnvs(msg.envs, msg.focus)
 	if m.screen == screenDetail {
 		m = m.refreshDetail(msg.envs)
@@ -361,7 +375,8 @@ func (m Model) onEnvsLoaded(msg envsLoadedMsg) Model {
 	case msg.status != "":
 		m = m.setStatus(msg.status, nil)
 	}
-	return m
+	m, before = m.restoreSelection(msg, before)
+	return m.persistSelection(before)
 }
 
 func joinStatus(parts ...string) string {
@@ -459,7 +474,7 @@ func (m Model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	switch {
 	case key.Matches(msg, m.keys.Quit):
-		return m, tea.Quit
+		return m, m.quitCmd()
 	case key.Matches(msg, m.keys.Back):
 		if m.list.hasFilter() {
 			m.list = m.list.clearFilter()
@@ -470,7 +485,9 @@ func (m Model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, m.keys.Down):
 		m.list = m.list.move(1)
 	case key.Matches(msg, m.keys.Mark):
+		before := m.list.marked
 		m.list = m.list.toggleMark()
+		return m.persistSelection(before)
 	case key.Matches(msg, m.keys.Filter):
 		m.list = m.list.startFilter()
 	case key.Matches(msg, m.keys.Help):
@@ -609,7 +626,11 @@ func (m Model) openDelete() Model {
 }
 
 func (m Model) View() string {
-	bodyHeight := max(m.height-chromeLines, 3)
+	chrome := chromeLines
+	if m.showsSelection() {
+		chrome++
+	}
+	bodyHeight := max(m.height-chrome, 3)
 	var body string
 	switch {
 	case m.showHelp:
@@ -624,7 +645,12 @@ func (m Model) View() string {
 	if m.modal != nil {
 		body = lipgloss.Place(m.width, bodyHeight, lipgloss.Center, lipgloss.Center, m.modal.view(m.styles, m.width))
 	}
-	return strings.Join([]string{m.headerView(), body, m.statusView(), m.help.View(m.activeHelp())}, "\n")
+	parts := []string{m.headerView()}
+	if m.showsSelection() {
+		parts = append(parts, m.list.selectionView(m.styles, m.width))
+	}
+	parts = append(parts, body, m.statusView(), m.help.View(m.activeHelp()))
+	return strings.Join(parts, "\n")
 }
 
 func (m Model) headerView() string {

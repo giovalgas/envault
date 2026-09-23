@@ -14,7 +14,7 @@ import (
 
 var rootCommandNames = []string{
 	"init", "list", "show", "get", "set", "unset", "new", "edit", "import",
-	"rename", "copy", "delete", "plan", "load", "exec", "shell", "shell-init", "skill",
+	"rename", "copy", "delete", "plan", "load", "selection", "exec", "shell", "shell-init", "skill",
 	"key", "completion",
 }
 

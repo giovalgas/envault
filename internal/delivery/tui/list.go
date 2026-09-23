@@ -168,6 +168,36 @@ func (l listModel) toggleMark() listModel {
 	return l
 }
 
+func (l listModel) withMarked(names []string) listModel {
+	l.marked = slices.DeleteFunc(slices.Clone(names), func(name string) bool {
+		return !l.hasEnv(name)
+	})
+	return l
+}
+
+func (l listModel) renameMarked(oldName, newName string) listModel {
+	i := slices.Index(l.marked, oldName)
+	if i < 0 {
+		return l
+	}
+	l.marked = slices.Clone(l.marked)
+	l.marked[i] = newName
+	return l
+}
+
+func (l listModel) markPosition(name string) int {
+	return slices.Index(l.marked, name) + 1
+}
+
+func (l listModel) markLabel(st styles, name string) string {
+	width := max(lipgloss.Width(markOff), len(fmt.Sprintf("[%d]", len(l.marked))))
+	pos := l.markPosition(name)
+	if pos == 0 {
+		return padRight(markOff, width)
+	}
+	return st.marked.Render(padRight(fmt.Sprintf("[%d]", pos), width))
+}
+
 func (l listModel) markedEnvs() []vault.Env {
 	out := make([]vault.Env, 0, len(l.marked))
 	for _, name := range l.marked {
@@ -218,12 +248,9 @@ func (l listModel) row(st styles, env vault.Env, focused bool, width int) string
 	if focused {
 		prefix = cursorMarker
 	}
-	mark := markOff
-	if l.isMarked(env.Name) {
-		mark = st.marked.Render(markOn)
-	}
+	mark := l.markLabel(st, env.Name)
 	meta := fmt.Sprintf("%s  %s", keyCount(len(env.Vars)), formatTime(env))
-	nameWidth := max(width-lipgloss.Width(prefix)-lipgloss.Width(markOff)-lipgloss.Width(meta)-3, 4)
+	nameWidth := max(width-lipgloss.Width(prefix)-lipgloss.Width(mark)-lipgloss.Width(meta)-3, 4)
 	name := padRight(truncate(env.Name, nameWidth), nameWidth)
 	line := fmt.Sprintf("%s%s %s  %s", prefix, mark, name, st.subtle.Render(meta))
 	if focused {

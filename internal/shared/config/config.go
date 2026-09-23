@@ -19,6 +19,8 @@ const (
 	KeyFileName   = "key"
 	LockFileName  = "vault.lock"
 
+	SelectionFileName = "selection.json"
+
 	DirPerm  os.FileMode = 0o700
 	FilePerm os.FileMode = 0o600
 )

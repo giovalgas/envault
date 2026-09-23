@@ -17,6 +17,7 @@ import (
 
 	"github.com/giovalgas/envault/internal/compose/infra/envfile"
 	"github.com/giovalgas/envault/internal/compose/infra/gitignore"
+	"github.com/giovalgas/envault/internal/compose/infra/selectionfile"
 	"github.com/giovalgas/envault/internal/compose/infra/vaultsource"
 	composeusecase "github.com/giovalgas/envault/internal/compose/usecase"
 	"github.com/giovalgas/envault/internal/shared/config"
@@ -38,10 +39,12 @@ const (
 var composeSecrets = []string{secretXFromA, secretXFromB, secretYFromB}
 
 type stack struct {
-	store   VaultStore
-	deps    Deps
-	dir     string
-	exports string
+	store     VaultStore
+	deps      Deps
+	selection SelectionUseCases
+	dir       string
+	vaultDir  string
+	exports   string
 }
 
 func composeEnvs() []vault.Env {
@@ -61,7 +64,8 @@ func newStack(t *testing.T, envs ...vault.Env) stack {
 	if err != nil {
 		t.Fatalf("criar keystore: %v", err)
 	}
-	repo := encryptedfile.New(config.PathsIn(t.TempDir()), keys)
+	vaultDir := t.TempDir()
+	repo := encryptedfile.New(config.PathsIn(vaultDir), keys)
 	ctx := context.Background()
 	if _, err := repo.Init(ctx); err != nil {
 		t.Fatalf("init: %v", err)
@@ -78,8 +82,14 @@ func newStack(t *testing.T, envs ...vault.Env) stack {
 	list := vaultusecase.NewListEnvs(repo)
 	source := vaultsource.New(func() (*vaultusecase.ListEnvs, error) { return list, nil })
 	files, ignore := envfile.New(), gitignore.New()
+	selections := selectionfile.New(func() (string, error) { return vaultDir, nil })
 	dir := t.TempDir()
 	return stack{
+		selection: SelectionUseCases{
+			GetSelection:  composeusecase.NewGetSelection(source, selections),
+			SaveSelection: composeusecase.NewSaveSelection(selections, nil),
+		},
+		vaultDir: vaultDir,
 		store: VaultStore{
 			ListEnvs:  list,
 			ShowEnv:   vaultusecase.NewShowEnv(repo),
@@ -101,6 +111,14 @@ func newStack(t *testing.T, envs ...vault.Env) stack {
 	}
 }
 
+func (s stack) options() Options {
+	return Options{
+		Actions:   Actions(s.deps),
+		Clipboard: func(string) error { return nil },
+		Selection: s.selection,
+	}
+}
+
 func (s stack) withWrapper(t *testing.T) stack {
 	t.Helper()
 	s.exports = filepath.Join(t.TempDir(), "exports")
@@ -110,11 +128,7 @@ func (s stack) withWrapper(t *testing.T) stack {
 
 func (s stack) start(t *testing.T) *session {
 	t.Helper()
-	opts := Options{
-		Actions:   Actions(s.deps),
-		Clipboard: func(string) error { return nil },
-	}
-	tm := teatest.NewTestModel(t, New(context.Background(), s.store, opts), teatest.WithInitialTermSize(termWidth, termHeight))
+	tm := teatest.NewTestModel(t, New(context.Background(), s.store, s.options()), teatest.WithInitialTermSize(termWidth, termHeight))
 	sess := &session{t: t, tm: tm}
 	sess.waitFor(stackReadyText)
 	return sess

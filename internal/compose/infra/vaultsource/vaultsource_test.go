@@ -96,3 +96,26 @@ func TestLoadEnvsFromVaultErrors(t *testing.T) {
 		t.Fatalf("load err = %v", err)
 	}
 }
+
+func TestEnvNamesListsVaultNames(t *testing.T) {
+	repo := newRepo(t, vault.Env{Name: "b", Vars: []vault.Var{{Key: "X", Value: "segredo"}}}, vault.Env{Name: "a"})
+	names, err := New(openRepo(repo)).EnvNames(context.Background())
+	if err != nil {
+		t.Fatalf("EnvNames: %v", err)
+	}
+	if !reflect.DeepEqual(names, []string{"a", "b"}) {
+		t.Fatalf("names = %v", names)
+	}
+}
+
+func TestEnvNamesErrors(t *testing.T) {
+	failing := New(func() (*vaultusecase.ListEnvs, error) { return nil, errBoom })
+	if _, err := failing.EnvNames(context.Background()); !errors.Is(err, errBoom) {
+		t.Fatalf("open err = %v", err)
+	}
+	repo := newRepo(t)
+	repo.loadErr = vault.ErrNotInitialized
+	if _, err := New(openRepo(repo)).EnvNames(context.Background()); !errors.Is(err, vault.ErrNotInitialized) {
+		t.Fatalf("load err = %v", err)
+	}
+}

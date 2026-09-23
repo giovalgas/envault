@@ -88,7 +88,7 @@ func TestListMarkToggle(t *testing.T) {
 	if !slices.Equal(m.list.marked, []string{"redis"}) {
 		t.Fatalf("marcadas = %v, esperado [redis]", m.list.marked)
 	}
-	if !strings.Contains(m.View(), markOn) {
+	if !strings.Contains(m.View(), "[1]") {
 		t.Fatal("view não mostra o marcador de seleção")
 	}
 	assertNoSecrets(t, "saída da marcação", out)

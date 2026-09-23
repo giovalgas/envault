@@ -28,6 +28,7 @@ func commands(app *App) []*cobra.Command {
 		newDeleteCmd(app),
 		newPlanCmd(app),
 		newLoadCmd(app),
+		newSelectionCmd(app),
 		newExecCmd(app),
 		newShellCmd(app),
 		newShellInitCmd(app),

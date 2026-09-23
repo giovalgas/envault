@@ -8,6 +8,7 @@ import (
 
 	"github.com/giovalgas/envault/internal/compose/infra/envfile"
 	"github.com/giovalgas/envault/internal/compose/infra/gitignore"
+	"github.com/giovalgas/envault/internal/compose/infra/selectionfile"
 	"github.com/giovalgas/envault/internal/compose/infra/vaultsource"
 	"github.com/giovalgas/envault/internal/delivery/cli"
 	"github.com/giovalgas/envault/internal/delivery/tui"
@@ -57,12 +58,15 @@ func wireKeyMigration(cfg config.Config) *usecase.MigrateKey {
 	})
 }
 
-func wireCompose(vault cli.VaultOpener) cli.ComposeUseCases {
+func wireCompose(cfg cli.ConfigLoader, vault cli.VaultOpener) cli.ComposeUseCases {
+	source := vaultsource.New(vault.ListEnvs)
 	return cli.NewComposeUseCases(cli.ComposeDeps{
-		Envs:      vaultsource.New(vault.ListEnvs),
-		Files:     envfile.New(),
-		Exports:   envfile.New(),
-		Gitignore: gitignore.New(),
+		Envs:       source,
+		Catalog:    source,
+		Files:      envfile.New(),
+		Exports:    envfile.New(),
+		Gitignore:  gitignore.New(),
+		Selections: selectionfile.New(cfg.Dir),
 	})
 }
 
@@ -92,6 +96,7 @@ func runTUI(ctx context.Context, session cli.TUISession) error {
 		Output:    session.Stdout,
 		Report:    session.Stderr,
 		InitVault: initVaultCmd(vault),
+		Selection: tui.SelectionUseCases{GetSelection: compose.GetSelection, SaveSelection: compose.SaveSelection},
 	})
 }
 

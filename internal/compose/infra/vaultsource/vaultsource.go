@@ -18,6 +18,22 @@ func New(open OpenListEnvs) *Source {
 	return &Source{open: open}
 }
 
+func (s *Source) EnvNames(ctx context.Context) ([]string, error) {
+	list, err := s.open()
+	if err != nil {
+		return nil, err
+	}
+	stored, err := list.Execute(ctx, vaultusecase.ListEnvsQuery{})
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, len(stored))
+	for i, env := range stored {
+		names[i] = env.Name
+	}
+	return names, nil
+}
+
 func (s *Source) ReadEnvs(ctx context.Context, names []string) ([]domain.Env, error) {
 	list, err := s.open()
 	if err != nil {

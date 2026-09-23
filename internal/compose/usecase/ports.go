@@ -23,3 +23,12 @@ type GitignoreChecker interface {
 type ExportWriter interface {
 	WriteExports(path string, script string) error
 }
+
+type EnvCatalog interface {
+	EnvNames(ctx context.Context) ([]string, error)
+}
+
+type SelectionStore interface {
+	Load(ctx context.Context) (domain.Selection, error)
+	Save(ctx context.Context, selection domain.Selection) error
+}

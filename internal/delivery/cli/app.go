@@ -78,6 +78,16 @@ func (open VaultOpener) ListEnvs() (*vaultusecase.ListEnvs, error) {
 	return uc.ListEnvs, nil
 }
 
+type ConfigLoader func() (config.Config, error)
+
+func (load ConfigLoader) Dir() (string, error) {
+	cfg, err := load()
+	if err != nil {
+		return "", err
+	}
+	return cfg.Paths.Dir, nil
+}
+
 type ComposeUseCases struct {
 	PlanLoad           *composeusecase.PlanLoad
 	LoadEnvFile        *composeusecase.LoadEnvFile
@@ -85,13 +95,17 @@ type ComposeUseCases struct {
 	ExecWithEnvs       *composeusecase.ExecWithEnvs
 	RenderShell        *composeusecase.RenderShell
 	RenderShellWrapper *composeusecase.RenderShellWrapper
+	GetSelection       *composeusecase.GetSelection
+	SaveSelection      *composeusecase.SaveSelection
 }
 
 type ComposeDeps struct {
-	Envs      composeusecase.EnvReader
-	Files     composeusecase.TargetFiles
-	Exports   composeusecase.ExportWriter
-	Gitignore composeusecase.GitignoreChecker
+	Envs       composeusecase.EnvReader
+	Catalog    composeusecase.EnvCatalog
+	Files      composeusecase.TargetFiles
+	Exports    composeusecase.ExportWriter
+	Gitignore  composeusecase.GitignoreChecker
+	Selections composeusecase.SelectionStore
 }
 
 func NewComposeUseCases(deps ComposeDeps) ComposeUseCases {
@@ -103,6 +117,8 @@ func NewComposeUseCases(deps ComposeDeps) ComposeUseCases {
 		ExecWithEnvs:       composeusecase.NewExecWithEnvs(deps.Envs),
 		RenderShell:        render,
 		RenderShellWrapper: composeusecase.NewRenderShellWrapper(),
+		GetSelection:       composeusecase.NewGetSelection(deps.Catalog, deps.Selections),
+		SaveSelection:      composeusecase.NewSaveSelection(deps.Selections, nil),
 	}
 }
 
@@ -118,7 +134,7 @@ func (e ShellExport) Active() bool {
 type Wiring struct {
 	Vault        func(cfg config.Config, streams Streams) (VaultUseCases, error)
 	KeyMigration func(cfg config.Config) *vaultusecase.MigrateKey
-	Compose      func(vault VaultOpener) ComposeUseCases
+	Compose      func(cfg ConfigLoader, vault VaultOpener) ComposeUseCases
 	Skill        func() *skillusecase.InstallSkill
 	TUI          func(ctx context.Context, session TUISession) error
 }
@@ -180,7 +196,7 @@ func (a *App) KeyMigration() (*vaultusecase.MigrateKey, error) {
 }
 
 func (a *App) Compose() ComposeUseCases {
-	return a.Wire.Compose(a.Vault)
+	return a.Wire.Compose(a.Config, a.Vault)
 }
 
 func (a *App) TUISession() (TUISession, error) {
@@ -192,10 +208,11 @@ func (a *App) TUISession() (TUISession, error) {
 	if err != nil {
 		return TUISession{}, err
 	}
+	loaded := func() (config.Config, error) { return cfg, nil }
 	opener := func() (VaultUseCases, error) { return uc, nil }
 	return TUISession{
 		Vault:   uc,
-		Compose: a.Wire.Compose(opener),
+		Compose: a.Wire.Compose(loaded, opener),
 		Export:  a.ShellExport(),
 		Stdin:   a.Stdin,
 		Stdout:  a.Stdout,
