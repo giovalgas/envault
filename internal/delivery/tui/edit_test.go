@@ -2,7 +2,9 @@ package tui
 
 import (
 	"context"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -135,6 +137,83 @@ func TestTUIEditCreatesNewEnv(t *testing.T) {
 	}
 	if filepath.Base(script.Path(1)) != "nova.env" {
 		t.Fatalf("temporário = %q", script.Path(1))
+	}
+	if script.Calls() != 1 {
+		t.Fatalf("editor aberto %d vezes, esperado 1", script.Calls())
+	}
+	assertNoSecrets(t, "saída da criação", out, editSecrets...)
+}
+
+func invalidThenUnchanged(invalid string, repeats int) []editortest.Step {
+	steps := []editortest.Step{{Content: invalid}}
+	for range repeats {
+		steps = append(steps, editortest.Step{Keep: true})
+	}
+	return steps
+}
+
+func TestTUINewEnvReopenedUnchangedDoesNotLoop(t *testing.T) {
+	script := editortest.Install(t, invalidThenUnchanged("K="+secretEdited+"\n1BAD=x\n", 5)...)
+	s := newStack(t, composeEnvs()...)
+	sess := s.start(t)
+	sess.typeText("n")
+	sess.waitFor("Nova env")
+	sess.typeText("nova")
+	sess.press(tea.KeyEnter)
+	sess.waitFor("criação de nova cancelada")
+	m, out := sess.finish()
+
+	if script.Calls() != 2 {
+		t.Fatalf("editor aberto %d vezes, esperado 2", script.Calls())
+	}
+	if _, err := s.store.Get(context.Background(), "nova"); err == nil {
+		t.Fatal("env com erro foi criada")
+	}
+	if m.modal != nil {
+		t.Fatalf("modal = %v", m.modal)
+	}
+	assertNoSecrets(t, "saída da criação", out, editSecrets...)
+}
+
+func TestTUIEditReopenedUnchangedDoesNotLoop(t *testing.T) {
+	script := editortest.Install(t, invalidThenUnchanged("X="+secretEdited+"\n1BAD=x\n", 5)...)
+	s := newStack(t, composeEnvs()...)
+	sess := s.start(t)
+	sess.typeText("e")
+	sess.waitFor("edição de a cancelada")
+	_, out := sess.finish()
+
+	if script.Calls() != 2 {
+		t.Fatalf("editor aberto %d vezes, esperado 2", script.Calls())
+	}
+	if value, _ := s.get(t, "a").Lookup("X"); value != secretXFromA {
+		t.Fatal("edição com erro foi gravada")
+	}
+	assertNoSecrets(t, "saída da edição", out, editSecrets...)
+}
+
+func TestTUINewEnvWithVimOpensOnceAndCreates(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("vim em modo Ex só é exercitado em Unix")
+	}
+	if _, err := exec.LookPath("vim"); err != nil {
+		t.Skip("vim não está instalado")
+	}
+	t.Setenv("VISUAL", "")
+	t.Setenv("EDITOR", `vim -N -u NONE -es "+normal! GoK=`+secretEdited+`" "+wq"`)
+	s := newStack(t, composeEnvs()...)
+	sess := s.start(t)
+	sess.typeText("n")
+	sess.waitFor("Nova env")
+	sess.typeText("nova")
+	sess.press(tea.KeyEnter)
+	sess.waitForAll("Criar nova", "+ K")
+	sess.press(tea.KeyEnter)
+	sess.waitFor("nova criada com 1 chave")
+	_, out := sess.finish()
+
+	if value, _ := s.get(t, "nova").Lookup("K"); value != secretEdited {
+		t.Fatal("env criada sem o valor gravado pelo vim")
 	}
 	assertNoSecrets(t, "saída da criação", out, editSecrets...)
 }

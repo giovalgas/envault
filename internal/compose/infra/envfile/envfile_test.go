@@ -203,3 +203,38 @@ func TestLoadEnvFileMergeErrors(t *testing.T) {
 		t.Fatalf("invalid.env = %q", got)
 	}
 }
+
+func TestWriteExportsIsPrivateAndAtomic(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "exports")
+	loadTestWrite(t, path, "antigo\n")
+	var _ usecase.ExportWriter = New()
+	script := "export X='1'\n"
+	if err := New().WriteExports(path, script); err != nil {
+		t.Fatalf("WriteExports: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Clean(path))
+	if err != nil || string(data) != script {
+		t.Fatalf("exports = %q err %v", data, err)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("entries = %v err %v", entries, err)
+	}
+	if runtime.GOOS == "windows" {
+		return
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("Stat: %v", err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o600 {
+		t.Fatalf("perm = %o", perm)
+	}
+}
+
+func TestWriteExportsRejectsDirectory(t *testing.T) {
+	if err := New().WriteExports(t.TempDir(), "export X='1'\n"); !errors.Is(err, usecase.ErrTargetIsDirectory) {
+		t.Fatalf("err = %v", err)
+	}
+}

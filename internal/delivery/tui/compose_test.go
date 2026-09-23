@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -37,9 +38,10 @@ const (
 var composeSecrets = []string{secretXFromA, secretXFromB, secretYFromB}
 
 type stack struct {
-	store VaultStore
-	deps  Deps
-	dir   string
+	store   VaultStore
+	deps    Deps
+	dir     string
+	exports string
 }
 
 func composeEnvs() []vault.Env {
@@ -91,10 +93,19 @@ func newStack(t *testing.T, envs ...vault.Env) stack {
 			ImportEnv:      vaultusecase.NewImportEnv(repo, nil),
 			PlanLoad:       composeusecase.NewPlanLoad(source, files, ignore),
 			LoadEnvFile:    composeusecase.NewLoadEnvFile(source, files, ignore),
+			ShellExports:   composeusecase.NewLoadShellExports(composeusecase.NewRenderShell(source), files),
+			ExportDialect:  composeusecase.ShellZsh,
 			Dir:            dir,
 		},
 		dir: dir,
 	}
+}
+
+func (s stack) withWrapper(t *testing.T) stack {
+	t.Helper()
+	s.exports = filepath.Join(t.TempDir(), "exports")
+	s.deps.ExportFile = s.exports
+	return s
 }
 
 func (s stack) start(t *testing.T) *session {
@@ -131,6 +142,15 @@ func (s *session) waitForAll(texts ...string) {
 		return true
 	}, teatest.WithDuration(waitTimeout), teatest.WithCheckInterval(10*time.Millisecond))
 	s.seen.Write(seen.Bytes())
+}
+
+func (s *session) assertSeen(texts ...string) {
+	s.t.Helper()
+	for _, text := range texts {
+		if !strings.Contains(s.seen.String(), text) {
+			s.t.Fatalf("tela não mostrou %q:\n%s", text, s.seen.String())
+		}
+	}
 }
 
 func openComposeAB(t *testing.T, s stack) *session {
@@ -370,4 +390,114 @@ func TestComposeTemplateParseErrorIsShown(t *testing.T) {
 	if !m.statusErr || m.compose.planned {
 		t.Fatalf("status = %q planned = %v", m.status, m.compose.planned)
 	}
+}
+
+func TestComposeTerminalIsDefaultWithWrapper(t *testing.T) {
+	s := newStack(t, composeEnvs()...).withWrapper(t)
+	sess := openComposeAB(t, s)
+	sess.assertSeen("destino: terminal atual", "t: gravar em arquivo")
+	sess.press(tea.KeyEnter)
+	m, out := sess.collect()
+
+	if m.exported != "2 variáveis de a, b exportadas no terminal" {
+		t.Fatalf("exported = %q", m.exported)
+	}
+	want := "export X='" + secretXFromB + "'\nexport Y='" + secretYFromB + "'\n"
+	if got := readFile(t, s.exports); got != want {
+		t.Fatalf("exports = %q", got)
+	}
+	if runtime.GOOS != "windows" {
+		info, err := os.Stat(s.exports)
+		if err != nil || info.Mode().Perm() != 0o600 {
+			t.Fatalf("exports perm %v err %v", info, err)
+		}
+	}
+	if entries, err := os.ReadDir(s.dir); err != nil || len(entries) != 0 {
+		t.Fatalf("montagem no terminal gravou arquivo: %v %v", entries, err)
+	}
+	assertNoSecrets(t, "saída da montagem no terminal", out, composeSecrets...)
+	var report bytes.Buffer
+	if err := reportExported(&report, m); err != nil || report.String() != "envault: 2 variáveis de a, b exportadas no terminal\n" {
+		t.Fatalf("report = %q err %v", report.String(), err)
+	}
+	assertNoSecrets(t, "relato da exportação", report.String(), composeSecrets...)
+}
+
+func TestComposeTerminalReportsMissingTemplateKeys(t *testing.T) {
+	s := newStack(t, composeEnvs()...).withWrapper(t)
+	writeFile(t, filepath.Join(s.dir, templateFileName), "Y=\nSENTRY_DSN=\n")
+	sess := openComposeAB(t, s)
+	sess.press(tea.KeyEnter)
+	m, _ := sess.collect()
+	if m.exported != "2 variáveis de a, b exportadas no terminal; sem valor no template: SENTRY_DSN" {
+		t.Fatalf("exported = %q", m.exported)
+	}
+	if got := readFile(t, s.exports); got != "export Y='"+secretYFromB+"'\nexport X='"+secretXFromB+"'\n" {
+		t.Fatalf("exports = %q", got)
+	}
+}
+
+func TestComposeToggleToFileWithWrapper(t *testing.T) {
+	s := newStack(t, composeEnvs()...).withWrapper(t)
+	sess := openComposeAB(t, s)
+	sess.typeText("t")
+	sess.waitForAll("destino: .env", "t: exportar no terminal")
+	sess.press(tea.KeyEnter)
+	sess.waitFor("gravado")
+	m, out := sess.finish()
+
+	if m.exported != "" || m.screen != screenList {
+		t.Fatalf("exported %q tela %v", m.exported, m.screen)
+	}
+	if got := readFile(t, filepath.Join(s.dir, ".env")); !strings.Contains(got, "X="+secretXFromB) {
+		t.Fatalf(".env = %q", got)
+	}
+	if _, err := os.Stat(s.exports); !os.IsNotExist(err) {
+		t.Fatalf("exports não deveria existir: %v", err)
+	}
+	assertNoSecrets(t, "saída da montagem em arquivo", out, composeSecrets...)
+}
+
+func TestComposeTargetPaneTogglesBack(t *testing.T) {
+	s := newStack(t, composeEnvs()...).withWrapper(t)
+	sess := openComposeAB(t, s)
+	sess.press(tea.KeyShiftTab)
+	sess.typeText("t")
+	sess.waitFor("destino: .env")
+	sess.typeText("x")
+	sess.press(tea.KeyTab)
+	sess.typeText("t")
+	sess.waitFor("destino: terminal atual")
+	m, _ := sess.finish()
+	if m.compose.dest != destTerminal || m.compose.targetValue() != ".envx" || m.compose.target.Focused() {
+		t.Fatalf("dest %v alvo %q foco %v", m.compose.dest, m.compose.targetValue(), m.compose.target.Focused())
+	}
+}
+
+func TestComposeWithoutWrapperOffersOnlyFile(t *testing.T) {
+	s := newStack(t, composeEnvs()...)
+	sess := openComposeAB(t, s)
+	sess.assertSeen("destino: .env", "sem wrapper: só arquivo", `eval "$(envault shell-init zsh)"`)
+	sess.typeText("t")
+	sess.waitFor("sem o wrapper de shell")
+	m, _ := sess.finish()
+	if m.compose.dest != destFile || !m.statusWarn || !strings.Contains(m.status, `eval "$(envault shell-init zsh)"`) {
+		t.Fatalf("dest %v status %q warn %v", m.compose.dest, m.status, m.statusWarn)
+	}
+	if m.exported != "" {
+		t.Fatalf("exported = %q", m.exported)
+	}
+}
+
+func TestComposeTerminalExportErrorKeepsCompose(t *testing.T) {
+	s := newStack(t, composeEnvs()...)
+	s.deps.ExportFile = t.TempDir()
+	sess := openComposeAB(t, s)
+	sess.press(tea.KeyEnter)
+	sess.waitFor("exportar no terminal")
+	m, out := sess.finish()
+	if m.screen != screenCompose || !m.statusErr || m.exported != "" {
+		t.Fatalf("tela %v status %q", m.screen, m.status)
+	}
+	assertNoSecrets(t, "saída do erro de exportação", out, composeSecrets...)
 }

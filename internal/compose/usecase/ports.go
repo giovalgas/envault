@@ -19,3 +19,7 @@ type TargetFiles interface {
 type GitignoreChecker interface {
 	IsIgnored(path string) domain.GitignoreStatus
 }
+
+type ExportWriter interface {
+	WriteExports(path string, script string) error
+}

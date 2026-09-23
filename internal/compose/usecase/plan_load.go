@@ -33,6 +33,9 @@ func (uc *PlanLoad) Execute(ctx context.Context, in PlanLoadInput) (PlanLoadResu
 	if err != nil {
 		return PlanLoadResult{}, err
 	}
+	if in.Target == "" {
+		return PlanLoadResult{Plan: plan}, nil
+	}
 	exists, err := uc.files.Exists(in.Target)
 	if err != nil {
 		return PlanLoadResult{}, err

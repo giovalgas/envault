@@ -28,7 +28,7 @@ func TestLoadCreatesTarget(t *testing.T) {
 	dir := planTestWorkdir(t)
 	ta := newTestApp(t)
 	planTestSeed(t, ta)
-	if code := ta.runWith(newLoadCmd(ta.App), "load", "a", "b"); code != ExitOK {
+	if code := ta.runWith(newLoadCmd(ta.App), "load", "--out", ".env", "a", "b"); code != ExitOK {
 		t.Fatalf("code = %d stderr %s", code, ta.Err.String())
 	}
 	want := []string{"X=2", "DATABASE_URL=" + planTestSecretDB, "APP_URL=" + planTestSecretApp}
@@ -68,7 +68,7 @@ func TestLoadRefusesExistingTarget(t *testing.T) {
 	if !strings.Contains(ta.Err.String(), "--force") {
 		t.Fatalf("stderr = %q", ta.Err.String())
 	}
-	if code := ta.runWith(newLoadCmd(ta.App), "load", "a", "--json"); code != ExitTargetExists {
+	if code := ta.runWith(newLoadCmd(ta.App), "load", "--out", ".env", "a", "--json"); code != ExitTargetExists {
 		t.Fatalf("json code = %d", code)
 	}
 	if envelope := decodeEnvelope(t, ta.Out.Bytes()); envelope.Error.Code != ExitTargetExists {
@@ -88,7 +88,7 @@ func TestLoadForceReplaces(t *testing.T) {
 	planTestWrite(t, target, "LOCAL=1\nX=0\n")
 	ta := newTestApp(t)
 	planTestSeed(t, ta)
-	if code := ta.runWith(newLoadCmd(ta.App), "load", "b", "--force"); code != ExitOK {
+	if code := ta.runWith(newLoadCmd(ta.App), "load", "--out", ".env", "b", "--force"); code != ExitOK {
 		t.Fatalf("code = %d stderr %s", code, ta.Err.String())
 	}
 	if got := loadTestParsed(t, target); !slices.Equal(got, []string{"X=2", "APP_URL=" + planTestSecretApp}) {
@@ -105,7 +105,7 @@ func TestLoadMergePreservesFileOrder(t *testing.T) {
 	planTestWrite(t, target, "A=old\nLOCAL=1\n")
 	ta := newTestApp(t)
 	ta.seed(t, planTestEnv("a", "A", "new", "B", "2"))
-	if code := ta.runWith(newLoadCmd(ta.App), "load", "a", "--merge"); code != ExitOK {
+	if code := ta.runWith(newLoadCmd(ta.App), "load", "--out", ".env", "a", "--merge"); code != ExitOK {
 		t.Fatalf("code = %d stderr %s", code, ta.Err.String())
 	}
 	if got := planTestRead(t, target); got != "A=new\nLOCAL=1\nB=2\n" {
@@ -120,7 +120,7 @@ func TestLoadMergeWithoutTargetCreates(t *testing.T) {
 	dir := planTestWorkdir(t)
 	ta := newTestApp(t)
 	ta.seed(t, planTestEnv("a", "A", "1"))
-	if code := ta.runWith(newLoadCmd(ta.App), "load", "a", "--merge", "--json"); code != ExitOK {
+	if code := ta.runWith(newLoadCmd(ta.App), "load", "--out", ".env", "a", "--merge", "--json"); code != ExitOK {
 		t.Fatalf("code = %d stderr %s", code, ta.Err.String())
 	}
 	if got := planTestRead(t, filepath.Join(dir, ".env")); got != "A=1\n" {
@@ -137,7 +137,7 @@ func TestLoadMergeInvalidTargetKeepsFile(t *testing.T) {
 	planTestWrite(t, target, "NOT VALID\n")
 	ta := newTestApp(t)
 	ta.seed(t, planTestEnv("a", "A", "1"))
-	if code := ta.runWith(newLoadCmd(ta.App), "load", "a", "--merge"); code != ExitValidation {
+	if code := ta.runWith(newLoadCmd(ta.App), "load", "--out", ".env", "a", "--merge"); code != ExitValidation {
 		t.Fatalf("code = %d stderr %s", code, ta.Err.String())
 	}
 	if got := planTestRead(t, target); got != "NOT VALID\n" {
@@ -159,7 +159,7 @@ func TestLoadTemplate(t *testing.T) {
 	planTestWrite(t, filepath.Join(dir, templateDefaultPath), "PORT=3000\nX=\nSENTRY_DSN=\n")
 	ta := newTestApp(t)
 	planTestSeed(t, ta)
-	if code := ta.runWith(newLoadCmd(ta.App), "load", "a", "--only-template"); code != ExitOK {
+	if code := ta.runWith(newLoadCmd(ta.App), "load", "--out", ".env", "a", "--only-template"); code != ExitOK {
 		t.Fatalf("code = %d stderr %s", code, ta.Err.String())
 	}
 	if got := planTestRead(t, filepath.Join(dir, ".env")); got != "PORT=3000\nX=1\n" {
@@ -198,7 +198,7 @@ func TestLoadGitignoreCovered(t *testing.T) {
 	planTestWrite(t, filepath.Join(dir, ".gitignore"), ".env\n")
 	ta := newTestApp(t)
 	planTestSeed(t, ta)
-	if code := ta.runWith(newLoadCmd(ta.App), "load", "a", "--json"); code != ExitOK {
+	if code := ta.runWith(newLoadCmd(ta.App), "load", "--out", ".env", "a", "--json"); code != ExitOK {
 		t.Fatalf("code = %d stderr %s", code, ta.Err.String())
 	}
 	if ta.Err.Len() != 0 {
@@ -217,7 +217,7 @@ func TestLoadOutsideRepoHasNoWarning(t *testing.T) {
 	planTestWorkdir(t)
 	ta := newTestApp(t)
 	planTestSeed(t, ta)
-	if code := ta.runWith(newLoadCmd(ta.App), "load", "a", "--json"); code != ExitOK {
+	if code := ta.runWith(newLoadCmd(ta.App), "load", "--out", ".env", "a", "--json"); code != ExitOK {
 		t.Fatalf("code = %d", code)
 	}
 	if ta.Err.Len() != 0 {
@@ -254,7 +254,7 @@ func TestLoadForceOnDirectoryFails(t *testing.T) {
 	}
 	ta := newTestApp(t)
 	ta.seed(t, planTestEnv("a", "A", "1"))
-	if code := ta.runWith(newLoadCmd(ta.App), "load", "a", "--force"); code != ExitValidation {
+	if code := ta.runWith(newLoadCmd(ta.App), "load", "--out", ".env", "a", "--force"); code != ExitValidation {
 		t.Fatalf("code = %d stderr %s", code, ta.Err.String())
 	}
 }
@@ -271,7 +271,7 @@ func TestLoadForceFollowsSymlink(t *testing.T) {
 	}
 	ta := newTestApp(t)
 	ta.seed(t, planTestEnv("a", "A", "1"))
-	if code := ta.runWith(newLoadCmd(ta.App), "load", "a", "--force"); code != ExitOK {
+	if code := ta.runWith(newLoadCmd(ta.App), "load", "--out", ".env", "a", "--force"); code != ExitOK {
 		t.Fatalf("code = %d stderr %s", code, ta.Err.String())
 	}
 	info, err := os.Lstat(filepath.Join(dir, ".env"))
@@ -287,7 +287,7 @@ func TestLoadEnvNotFound(t *testing.T) {
 	dir := planTestWorkdir(t)
 	ta := newTestApp(t)
 	planTestSeed(t, ta)
-	if code := ta.runWith(newLoadCmd(ta.App), "load", "a", "nao-existe"); code != ExitEnvNotFound {
+	if code := ta.runWith(newLoadCmd(ta.App), "load", "--out", ".env", "a", "nao-existe"); code != ExitEnvNotFound {
 		t.Fatalf("code = %d", code)
 	}
 	if entries := planTestEntries(t, dir); len(entries) != 0 {

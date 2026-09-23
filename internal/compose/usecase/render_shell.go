@@ -24,8 +24,15 @@ func ShellDialects() []string {
 }
 
 type RenderShellInput struct {
-	Envs    []string
-	Dialect string
+	Envs     []string
+	Dialect  string
+	Template *domain.Template
+	Options  domain.Options
+}
+
+type RenderShellResult struct {
+	Plan   domain.Plan
+	Script string
 }
 
 type RenderShell struct {
@@ -36,12 +43,12 @@ func NewRenderShell(envs EnvReader) *RenderShell {
 	return &RenderShell{envs: envs}
 }
 
-func (uc *RenderShell) Execute(ctx context.Context, in RenderShellInput) (string, error) {
-	plan, err := combine(ctx, uc.envs, in.Envs, nil, domain.Options{})
+func (uc *RenderShell) Execute(ctx context.Context, in RenderShellInput) (RenderShellResult, error) {
+	plan, err := combine(ctx, uc.envs, in.Envs, in.Template, in.Options)
 	if err != nil {
-		return "", err
+		return RenderShellResult{}, err
 	}
-	return renderShell(in.Dialect, plan.Pairs()), nil
+	return RenderShellResult{Plan: plan, Script: renderShell(in.Dialect, plan.Pairs())}, nil
 }
 
 func renderShell(dialect string, vars []domain.Var) string {

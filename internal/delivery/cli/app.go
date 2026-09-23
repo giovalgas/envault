@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 
 	"golang.org/x/term"
 
@@ -78,25 +79,40 @@ func (open VaultOpener) ListEnvs() (*vaultusecase.ListEnvs, error) {
 }
 
 type ComposeUseCases struct {
-	PlanLoad     *composeusecase.PlanLoad
-	LoadEnvFile  *composeusecase.LoadEnvFile
-	ExecWithEnvs *composeusecase.ExecWithEnvs
-	RenderShell  *composeusecase.RenderShell
+	PlanLoad           *composeusecase.PlanLoad
+	LoadEnvFile        *composeusecase.LoadEnvFile
+	LoadShellExports   *composeusecase.LoadShellExports
+	ExecWithEnvs       *composeusecase.ExecWithEnvs
+	RenderShell        *composeusecase.RenderShell
+	RenderShellWrapper *composeusecase.RenderShellWrapper
 }
 
 type ComposeDeps struct {
 	Envs      composeusecase.EnvReader
 	Files     composeusecase.TargetFiles
+	Exports   composeusecase.ExportWriter
 	Gitignore composeusecase.GitignoreChecker
 }
 
 func NewComposeUseCases(deps ComposeDeps) ComposeUseCases {
+	render := composeusecase.NewRenderShell(deps.Envs)
 	return ComposeUseCases{
-		PlanLoad:     composeusecase.NewPlanLoad(deps.Envs, deps.Files, deps.Gitignore),
-		LoadEnvFile:  composeusecase.NewLoadEnvFile(deps.Envs, deps.Files, deps.Gitignore),
-		ExecWithEnvs: composeusecase.NewExecWithEnvs(deps.Envs),
-		RenderShell:  composeusecase.NewRenderShell(deps.Envs),
+		PlanLoad:           composeusecase.NewPlanLoad(deps.Envs, deps.Files, deps.Gitignore),
+		LoadEnvFile:        composeusecase.NewLoadEnvFile(deps.Envs, deps.Files, deps.Gitignore),
+		LoadShellExports:   composeusecase.NewLoadShellExports(render, deps.Exports),
+		ExecWithEnvs:       composeusecase.NewExecWithEnvs(deps.Envs),
+		RenderShell:        render,
+		RenderShellWrapper: composeusecase.NewRenderShellWrapper(),
 	}
+}
+
+type ShellExport struct {
+	File    string
+	Dialect string
+}
+
+func (e ShellExport) Active() bool {
+	return e.File != ""
 }
 
 type Wiring struct {
@@ -110,8 +126,10 @@ type Wiring struct {
 type TUISession struct {
 	Vault   VaultUseCases
 	Compose ComposeUseCases
+	Export  ShellExport
 	Stdin   io.Reader
 	Stdout  io.Writer
+	Stderr  io.Writer
 	Debug   bool
 }
 
@@ -178,10 +196,20 @@ func (a *App) TUISession() (TUISession, error) {
 	return TUISession{
 		Vault:   uc,
 		Compose: a.Wire.Compose(opener),
+		Export:  a.ShellExport(),
 		Stdin:   a.Stdin,
 		Stdout:  a.Stdout,
+		Stderr:  a.Stderr,
 		Debug:   cfg.Debug,
 	}, nil
+}
+
+func (a *App) ShellExport() ShellExport {
+	dialect := os.Getenv(composeusecase.ExportShellVar)
+	if !slices.Contains(shellDialects, dialect) {
+		dialect = shellDetect()
+	}
+	return ShellExport{File: os.Getenv(composeusecase.ExportFileVar), Dialect: dialect}
 }
 
 func (a *App) StdinIsTerminal() bool {

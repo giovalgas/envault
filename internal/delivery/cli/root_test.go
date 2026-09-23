@@ -14,8 +14,8 @@ import (
 
 var rootCommandNames = []string{
 	"init", "list", "show", "get", "set", "unset", "new", "edit", "import",
-	"rename", "copy", "delete", "plan", "load", "exec", "shell", "skill", "key",
-	"completion",
+	"rename", "copy", "delete", "plan", "load", "exec", "shell", "shell-init", "skill",
+	"key", "completion",
 }
 
 type fakeTUI struct {
@@ -136,6 +136,25 @@ func TestRootTUISessionSharesVault(t *testing.T) {
 	}
 	if !slices.Equal(result.Plan.Conflicts, []string{"X"}) || result.Plan.Vars[0].From != "b" {
 		t.Fatalf("plano = %+v", result.Plan)
+	}
+}
+
+func TestRootTUISessionCarriesShellExport(t *testing.T) {
+	ta := newTestApp(t)
+	ta.initVault(t)
+	t.Setenv(composeusecase.ExportFileVar, "/tmp/envault.x/exports")
+	t.Setenv(composeusecase.ExportShellVar, "fish")
+	fake := ta.withTUI(nil)
+	ta.setTerminal(true, true)
+	if code := ta.run(); code != ExitOK {
+		t.Fatalf("code = %d stderr = %q", code, ta.Err.String())
+	}
+	session := fake.session
+	if session.Export != (ShellExport{File: "/tmp/envault.x/exports", Dialect: "fish"}) || !session.Export.Active() {
+		t.Fatalf("export = %+v", session.Export)
+	}
+	if session.Stderr != ta.Err || session.Compose.LoadShellExports == nil {
+		t.Fatalf("sessão = %+v", session)
 	}
 }
 

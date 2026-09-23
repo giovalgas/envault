@@ -24,6 +24,7 @@ type keyMap struct {
 	NextPane   key.Binding
 	PrevPane   key.Binding
 	Write      key.Binding
+	Target     key.Binding
 	Filter     key.Binding
 	Help       key.Binding
 	Quit       key.Binding
@@ -53,7 +54,8 @@ func defaultKeyMap() keyMap {
 		Expand:     key.NewBinding(key.WithKeys(" "), key.WithHelp("space", "expandir conflito")),
 		NextPane:   key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "próximo painel")),
 		PrevPane:   key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("shift+tab", "painel anterior")),
-		Write:      key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "gravar montagem")),
+		Write:      key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "carregar montagem")),
+		Target:     key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "terminal ou arquivo")),
 		Filter:     key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filtrar")),
 		Help:       key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "ajuda")),
 		Quit:       key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q/ctrl+c", "sair/voltar")),
@@ -100,7 +102,7 @@ func (k keyMap) detailHelp() helpBindings {
 
 func (k keyMap) composeHelp() helpBindings {
 	return helpBindings{
-		short: []key.Binding{k.Help, k.Back, k.Up, k.Down, k.MoveUp, k.MoveDown, k.NextPane, k.Expand, k.Write},
+		short: []key.Binding{k.Help, k.Back, k.Up, k.Down, k.MoveUp, k.MoveDown, k.NextPane, k.Expand, k.Target, k.Write},
 		full:  k.allGroups(),
 	}
 }
@@ -124,7 +126,7 @@ func (k keyMap) allGroups() [][]key.Binding {
 		{k.Up, k.Down, k.Mark, k.Compose, k.Open},
 		{k.Reveal, k.Copy},
 		{k.New, k.Edit, k.Duplicate, k.Rename, k.Import, k.Delete},
-		{k.MoveUp, k.MoveDown, k.NextPane, k.Expand, k.Write},
+		{k.MoveUp, k.MoveDown, k.NextPane, k.Expand, k.Target, k.Write},
 		{k.Filter, k.Help, k.Quit, k.Back},
 	}
 }

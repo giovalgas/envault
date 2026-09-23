@@ -58,6 +58,28 @@ func TestInteractiveSessionReopensThenApplies(t *testing.T) {
 	}
 }
 
+func TestInteractiveSessionCancelsWhenReopenedFileIsUnchanged(t *testing.T) {
+	script := editortest.Install(t,
+		editortest.Step{Content: "A=valor-a-secreto\n1BAD=x\n"},
+		editortest.Step{Keep: true},
+		editortest.Step{Keep: true},
+	)
+	session, err := NewInteractive(Options{}).Open(domain.Env{Name: "nova"}, true)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { _ = session.Close() })
+	if _, err := session.Review(runInteractive(t, session)); !errors.Is(err, domain.ErrEditReopen) {
+		t.Fatalf("first review err = %v, want ErrEditReopen", err)
+	}
+	if _, err := session.Review(runInteractive(t, session)); !errors.Is(err, domain.ErrEditCanceled) {
+		t.Fatalf("second review err = %v, want ErrEditCanceled", err)
+	}
+	if script.Calls() != 2 {
+		t.Fatalf("editor opened %d times, want 2", script.Calls())
+	}
+}
+
 func TestInteractiveSessionCancelsNewEnv(t *testing.T) {
 	editortest.Install(t, editortest.Step{Content: "# só comentário\n"})
 	session, err := NewInteractive(Options{}).Open(domain.Env{Name: "nova"}, true)

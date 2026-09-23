@@ -88,3 +88,17 @@ func env(name string, pairs ...string) domain.Env {
 func vars(pairs ...string) []domain.Var {
 	return env("", pairs...).Vars
 }
+
+type fakeExports struct {
+	err    error
+	path   string
+	script string
+	writes int
+}
+
+func (f *fakeExports) WriteExports(path, script string) error {
+	f.writes++
+	f.path = path
+	f.script = script
+	return f.err
+}

@@ -50,6 +50,10 @@ func (Files) Merge(path string, vars []domain.Var) (int, error) {
 	return len(merged), nil
 }
 
+func (Files) WriteExports(path string, script string) error {
+	return writeAtomic(path, []byte(script))
+}
+
 func toDotenv(vars []domain.Var) []dotenv.Var {
 	out := make([]dotenv.Var, len(vars))
 	for i, v := range vars {

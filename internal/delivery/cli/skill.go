@@ -10,8 +10,8 @@ import (
 
 const skillFlagDir = "dir"
 
-const skillPermissionsNote = "Adicione em ~/.claude/settings.json (ou .claude/settings.json do projeto) as regras de permissão sugeridas.\n" +
-	"O deny cobre .env e .env.local, mas deixa .env.example legível para a Skill descobrir as chaves do projeto."
+const skillPermissionsNote = "Adicione as regras de permissão sugeridas em ~/.claude/settings.json ou no .claude/settings.json do projeto.\n" +
+	"O deny bloqueia a leitura de .env e .env.local. O .env.example continua legível, e a Skill lê esse arquivo para descobrir as chaves do projeto."
 
 func newSkillCmd(app *App) *cobra.Command {
 	skillCmd := &cobra.Command{

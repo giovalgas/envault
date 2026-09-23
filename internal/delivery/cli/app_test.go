@@ -119,6 +119,7 @@ func testCompose(vault VaultOpener) ComposeUseCases {
 	return NewComposeUseCases(ComposeDeps{
 		Envs:      vaultsource.New(vault.ListEnvs),
 		Files:     envfile.New(),
+		Exports:   envfile.New(),
 		Gitignore: gitignore.New(),
 	})
 }

@@ -8,6 +8,8 @@ import (
 var (
 	ErrTargetExists      = errors.New("arquivo de destino já existe")
 	ErrTargetIsDirectory = errors.New("destino é um diretório")
+	ErrNoExportFile      = errors.New("arquivo de export do shell não definido")
+	ErrUnsupportedShell  = errors.New("shell não suportado")
 )
 
 type DuplicateEnvError struct {

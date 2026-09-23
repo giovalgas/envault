@@ -56,6 +56,18 @@ func TestSkillContentRules(t *testing.T) {
 	}
 }
 
+func TestSkillContentUsesOutTarget(t *testing.T) {
+	c := Content()
+	for _, want := range []string{
+		"envault plan <envs...> --out <target>",
+		"envault load <envs...> --out <target>",
+	} {
+		if !strings.Contains(c, want) {
+			t.Errorf("SKILL.md sem %q; o Claude não exporta no terminal do usuário", want)
+		}
+	}
+}
+
 func TestSkillPath(t *testing.T) {
 	got := Path("/tmp/skills")
 	want := filepath.Join("/tmp/skills", Name, FileName)

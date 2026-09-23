@@ -39,7 +39,7 @@ func newShellCmd(app *App) *cobra.Command {
 			if err != nil {
 				return composeError(err)
 			}
-			_, err = fmt.Fprint(app.Stdout, rendered)
+			_, err = fmt.Fprint(app.Stdout, rendered.Script)
 			return err
 		},
 	}
@@ -54,9 +54,13 @@ func shellChoose(dialect string, explicit bool) (string, error) {
 		}
 		return dialect, nil
 	}
+	return shellDetect(), nil
+}
+
+func shellDetect() string {
 	detected := strings.TrimSuffix(filepath.Base(os.Getenv(shellEnvVar)), ".exe")
 	if slices.Contains(shellDialects, detected) {
-		return detected, nil
+		return detected
 	}
-	return shellBash, nil
+	return shellBash
 }

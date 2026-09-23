@@ -60,7 +60,7 @@ func TestPlanLoadErrors(t *testing.T) {
 	}
 	files := &fakeFiles{existsErr: errBoom}
 	ignore := &fakeGitignore{}
-	if _, err := NewPlanLoad(newReader(env("a")), files, ignore).Execute(context.Background(), PlanLoadInput{Envs: []string{"a"}}); !errors.Is(err, errBoom) {
+	if _, err := NewPlanLoad(newReader(env("a")), files, ignore).Execute(context.Background(), PlanLoadInput{Envs: []string{"a"}, Target: ".env"}); !errors.Is(err, errBoom) {
 		t.Fatalf("exists err = %v", err)
 	}
 	if len(ignore.paths) != 0 {
@@ -73,5 +73,20 @@ func TestPlanLoadEnvNotFoundMessage(t *testing.T) {
 	var missing *EnvNotFoundError
 	if !errors.As(err, &missing) || missing.Name != "x" || err.Error() != `env "x" não encontrada` {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestPlanLoadWithoutTargetSkipsInspection(t *testing.T) {
+	files := &fakeFiles{existsErr: errBoom}
+	ignore := &fakeGitignore{status: domain.GitignoreNotIgnored}
+	result, err := NewPlanLoad(newReader(env("a", "X", "1")), files, ignore).Execute(context.Background(), PlanLoadInput{Envs: []string{"a"}})
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if result.Target != (domain.Target{}) || len(ignore.paths) != 0 {
+		t.Fatalf("target = %+v gitignore = %v", result.Target, ignore.paths)
+	}
+	if !slices.Equal(result.Plan.Keys(), []string{"X"}) {
+		t.Fatalf("keys = %v", result.Plan.Keys())
 	}
 }

@@ -29,10 +29,28 @@ const (
 )
 
 type composeDeps struct {
-	plan *composeusecase.PlanLoad
-	load *composeusecase.LoadEnvFile
-	dir  string
+	plan       *composeusecase.PlanLoad
+	load       *composeusecase.LoadEnvFile
+	export     *composeusecase.LoadShellExports
+	exportFile string
+	dialect    string
+	dir        string
 }
+
+func (d composeDeps) terminalReady() bool {
+	return d.export != nil && d.exportFile != ""
+}
+
+func (d composeDeps) terminalHint() string {
+	return "sem o wrapper de shell, só arquivo: adicione " + composeusecase.ShellInitLine(d.dialect) + " ao rc do shell"
+}
+
+type composeDest int
+
+const (
+	destTerminal composeDest = iota
+	destFile
+)
 
 type composePane int
 
@@ -57,6 +75,7 @@ type composeModel struct {
 	row      int
 	expanded map[string]bool
 	target   textinput.Model
+	dest     composeDest
 	seq      int
 	planned  bool
 	plan     composedomain.Plan
@@ -67,6 +86,11 @@ type composePlanMsg struct {
 	seq    int
 	result composeusecase.PlanLoadResult
 	tmpl   templateInfo
+	err    error
+}
+
+type composeExportedMsg struct {
+	result composeusecase.LoadShellExportsResult
 	err    error
 }
 
@@ -82,12 +106,42 @@ func newComposeModel(names []string, deps composeDeps) composeModel {
 	ti.SetValue(defaultEnvFile)
 	ti.CharLimit = 256
 	ti.Cursor.SetMode(cursor.CursorStatic)
+	dest := destFile
+	if deps.terminalReady() {
+		dest = destTerminal
+	}
 	return composeModel{
 		deps:     deps,
 		order:    slices.Clone(names),
 		expanded: map[string]bool{},
 		target:   ti,
+		dest:     dest,
 	}
+}
+
+func (c composeModel) editingTarget() bool {
+	return c.pane == paneTarget && c.dest == destFile
+}
+
+func (c composeModel) toggleDest() (composeModel, bool) {
+	if !c.deps.terminalReady() {
+		return c, false
+	}
+	if c.dest == destTerminal {
+		c.dest = destFile
+	} else {
+		c.dest = destTerminal
+	}
+	return c.focusTarget(), true
+}
+
+func (c composeModel) focusTarget() composeModel {
+	if c.editingTarget() {
+		c.target.Focus()
+	} else {
+		c.target.Blur()
+	}
+	return c
 }
 
 func (c composeModel) targetValue() string {
@@ -142,6 +196,22 @@ func (c composeModel) writeCmd(ctx context.Context, existing composeusecase.Exis
 	}, nil
 }
 
+func (c composeModel) exportCmd(ctx context.Context) (tea.Cmd, error) {
+	if !c.planned {
+		return nil, errors.New("aguarde a prévia da montagem")
+	}
+	names, deps, tmpl := slices.Clone(c.order), c.deps, c.tmpl
+	return func() tea.Msg {
+		result, err := deps.export.Execute(ctx, composeusecase.LoadShellExportsInput{
+			Envs:       names,
+			Template:   tmpl.template,
+			Dialect:    deps.dialect,
+			ExportFile: deps.exportFile,
+		})
+		return composeExportedMsg{result: result, err: err}
+	}, nil
+}
+
 func (c composeModel) moveCursor(delta int) composeModel {
 	switch c.pane {
 	case paneOrder:
@@ -165,12 +235,7 @@ func (c composeModel) reorder(delta int) (composeModel, bool) {
 
 func (c composeModel) cyclePane(delta int) composeModel {
 	c.pane = (c.pane + composePane(delta) + paneCount) % paneCount
-	if c.pane == paneTarget {
-		c.target.Focus()
-	} else {
-		c.target.Blur()
-	}
-	return c
+	return c.focusTarget()
 }
 
 func (c composeModel) toggleExpanded() composeModel {
@@ -222,7 +287,7 @@ func (m Model) updateCompose(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if key.Matches(msg, m.keys.Back) || msg.Type == tea.KeyCtrlC {
 		return m.closeCompose(), nil
 	}
-	if c.pane == paneTarget {
+	if c.editingTarget() {
 		switch {
 		case key.Matches(msg, m.keys.Write):
 			return m.writeCompose(composeusecase.RefuseExisting)
@@ -241,7 +306,9 @@ func (m Model) updateCompose(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, m.keys.Quit):
 		return m.closeCompose(), nil
 	case key.Matches(msg, m.keys.Write):
-		return m.writeCompose(composeusecase.RefuseExisting)
+		return m.confirmCompose()
+	case key.Matches(msg, m.keys.Target):
+		return m.toggleComposeDest(), nil
 	case key.Matches(msg, m.keys.NextPane):
 		m.compose = c.cyclePane(1)
 	case key.Matches(msg, m.keys.PrevPane):
@@ -270,6 +337,43 @@ func (m Model) reorderCompose(delta int) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.compose, cmd = compose.planCmd(m.ctx)
 	return m, cmd
+}
+
+func (m Model) confirmCompose() (tea.Model, tea.Cmd) {
+	if m.compose.dest == destFile {
+		return m.writeCompose(composeusecase.RefuseExisting)
+	}
+	cmd, err := m.compose.exportCmd(m.ctx)
+	if err != nil {
+		return m.setStatus("", err), nil
+	}
+	return m.setStatus("exportando...", nil), cmd
+}
+
+func (m Model) toggleComposeDest() Model {
+	compose, toggled := m.compose.toggleDest()
+	if !toggled {
+		return m.setWarning(m.compose.deps.terminalHint())
+	}
+	m.compose = compose
+	return m.setStatus("", nil)
+}
+
+func (m Model) onComposeExported(msg composeExportedMsg) (tea.Model, tea.Cmd) {
+	if msg.err != nil {
+		m.logger.Printf("exportar montagem: %v", msg.err)
+		return m.setStatus("", fmt.Errorf("exportar no terminal: %w", msg.err)), nil
+	}
+	m.exported = exportedText(msg.result)
+	return m, tea.Quit
+}
+
+func exportedText(result composeusecase.LoadShellExportsResult) string {
+	text := fmt.Sprintf("%d variáveis de %s exportadas no terminal", result.Written, strings.Join(result.Plan.Envs, ", "))
+	if missing := result.Plan.Missing; len(missing) > 0 {
+		text += "; sem valor no template: " + strings.Join(missing, ", ")
+	}
+	return text
 }
 
 func (m Model) writeCompose(existing composeusecase.ExistingTarget) (tea.Model, tea.Cmd) {
@@ -385,9 +489,28 @@ func (c composeModel) leftView(st styles, width int) string {
 		}
 		lines = append(lines, line)
 	}
-	c.target.Width = max(width-lipgloss.Width(c.target.Prompt)-1, 1)
-	lines = append(lines, "", c.target.View())
+	lines = append(lines, "")
+	lines = append(lines, c.destLines(st, width)...)
 	return strings.Join(lines, "\n")
+}
+
+func (c composeModel) destLines(st styles, width int) []string {
+	if c.dest == destTerminal {
+		line := truncate(targetPromptLabel+"terminal atual", width)
+		if c.pane == paneTarget {
+			line = st.focused.Render(line)
+		}
+		return []string{line, st.subtle.Render(truncate("t: gravar em arquivo", width))}
+	}
+	c.target.Width = max(width-lipgloss.Width(c.target.Prompt)-1, 1)
+	if c.deps.terminalReady() {
+		return []string{c.target.View(), st.subtle.Render(truncate("t: exportar no terminal", width))}
+	}
+	return []string{
+		c.target.View(),
+		st.warnText.Render(truncate("sem wrapper: só arquivo", width)),
+		st.subtle.Render(truncate(composeusecase.ShellInitLine(c.deps.dialect), width)),
+	}
 }
 
 func (c composeModel) rightView(st styles, width, height int) string {

@@ -31,6 +31,7 @@ type planTestOutput struct {
 		Path       string `json:"path"`
 		Exists     bool   `json:"exists"`
 		Gitignored *bool  `json:"gitignored"`
+		Mode       string `json:"mode"`
 	} `json:"target"`
 	Template struct {
 		Path  *string `json:"path"`
@@ -351,7 +352,7 @@ func TestPlanTargetInRepo(t *testing.T) {
 	planTestWrite(t, filepath.Join(dir, ".env"), "LOCAL=1\n")
 	ta := newTestApp(t)
 	planTestSeed(t, ta)
-	if code := ta.runWith(newPlanCmd(ta.App), "plan", "a"); code != ExitOK {
+	if code := ta.runWith(newPlanCmd(ta.App), "plan", "a", "--out", ".env"); code != ExitOK {
 		t.Fatalf("code = %d stdout %s", code, ta.Out.String())
 	}
 	out := planTestDecode(t, ta.Out.Bytes())

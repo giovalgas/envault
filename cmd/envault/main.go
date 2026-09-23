@@ -61,6 +61,7 @@ func wireCompose(vault cli.VaultOpener) cli.ComposeUseCases {
 	return cli.NewComposeUseCases(cli.ComposeDeps{
 		Envs:      vaultsource.New(vault.ListEnvs),
 		Files:     envfile.New(),
+		Exports:   envfile.New(),
 		Gitignore: gitignore.New(),
 	})
 }
@@ -80,13 +81,25 @@ func runTUI(ctx context.Context, session cli.TUISession) error {
 		ImportEnv:      vault.ImportEnv,
 		PlanLoad:       compose.PlanLoad,
 		LoadEnvFile:    compose.LoadEnvFile,
+		ShellExports:   compose.LoadShellExports,
+		ExportFile:     session.Export.File,
+		ExportDialect:  session.Export.Dialect,
 	})
 	return tui.Run(ctx, store, tui.Options{
-		Actions: actions,
-		Debug:   session.Debug,
-		Input:   session.Stdin,
-		Output:  session.Stdout,
+		Actions:   actions,
+		Debug:     session.Debug,
+		Input:     session.Stdin,
+		Output:    session.Stdout,
+		Report:    session.Stderr,
+		InitVault: initVaultCmd(vault),
 	})
+}
+
+func initVaultCmd(vault cli.VaultUseCases) tui.InitVaultFunc {
+	return func(ctx context.Context) (bool, string, error) {
+		result, err := vault.InitVault.Execute(ctx)
+		return result.Created, result.Location, err
+	}
 }
 
 func wireSkill() *skillusecase.InstallSkill {

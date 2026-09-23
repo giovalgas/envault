@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -126,6 +128,9 @@ func TestNewWithEditor(t *testing.T) {
 	if !strings.HasSuffix(script.Path(1), "a.env") {
 		t.Fatalf("temp path = %q", script.Path(1))
 	}
+	if script.Calls() != 1 {
+		t.Fatalf("editor opened %d time(s), want 1", script.Calls())
+	}
 	env := newGetEnv(t, ta)
 	if v, _ := env.Lookup("DATABASE_URL"); v != "postgres://segredo" || env.Description != "banco" {
 		t.Fatalf("env = %+v", env)
@@ -161,6 +166,69 @@ func TestNewEditorReopensThenCreates(t *testing.T) {
 	if env := newGetEnv(t, ta); !slices.Equal(env.Keys(), []string{"A", "KEY"}) {
 		t.Fatalf("keys = %q", env.Keys())
 	}
+}
+
+func invalidThenUnchanged(invalid string, repeats int) []editortest.Step {
+	steps := []editortest.Step{{Content: invalid}}
+	for range repeats {
+		steps = append(steps, editortest.Step{Keep: true})
+	}
+	return steps
+}
+
+func TestNewEditorReopenedUnchangedCancels(t *testing.T) {
+	ta := newTestApp(t)
+	ta.initVault(t)
+	script := editortest.Install(t, invalidThenUnchanged("A=1\n1KEY=x\n", 5)...)
+	if code := ta.runWith(newNewCmd(ta.App), "new", "nova"); code != ExitCanceled {
+		t.Fatalf("code = %d, stderr = %q", code, ta.Err.String())
+	}
+	if script.Calls() != 2 {
+		t.Fatalf("editor opened %d time(s), want 2", script.Calls())
+	}
+	if !strings.Contains(ta.Err.String(), `"1KEY"`) {
+		t.Fatalf("stderr = %q", ta.Err.String())
+	}
+	newAssertAbsent(t, ta, "nova")
+}
+
+func installVim(t *testing.T, commands ...string) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("vim em modo Ex só é exercitado em Unix")
+	}
+	if _, err := exec.LookPath("vim"); err != nil {
+		t.Skip("vim não está instalado")
+	}
+	line := "vim -N -u NONE -es"
+	for _, command := range commands {
+		line += ` "+` + command + `"`
+	}
+	t.Setenv("VISUAL", "")
+	t.Setenv("EDITOR", line)
+}
+
+func TestNewWithVimCreatesEnv(t *testing.T) {
+	ta := newTestApp(t)
+	ta.initVault(t)
+	installVim(t, "1s/$/ banco/", "2s/$/ db/", "normal! GoDATABASE_URL=postgres://segredo", "wq")
+	if code := ta.runWith(newNewCmd(ta.App), "new", "a"); code != ExitOK {
+		t.Fatalf("code = %d, stderr = %q", code, ta.Err.String())
+	}
+	env := newGetEnv(t, ta)
+	if v, _ := env.Lookup("DATABASE_URL"); v != "postgres://segredo" || env.Description != "banco" || !env.HasTag("db") {
+		t.Fatalf("env = %+v", env.Keys())
+	}
+}
+
+func TestNewWithVimSavedUnchangedCancels(t *testing.T) {
+	ta := newTestApp(t)
+	ta.initVault(t)
+	installVim(t, "wq")
+	if code := ta.runWith(newNewCmd(ta.App), "new", "a"); code != ExitCanceled {
+		t.Fatalf("code = %d, stderr = %q", code, ta.Err.String())
+	}
+	newAssertAbsent(t, ta, "a")
 }
 
 func TestNewExistingEnvFailsBeforeEditor(t *testing.T) {

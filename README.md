@@ -1,12 +1,12 @@
 # envault
 
-Cofre local e criptografado de variáveis de ambiente. Guarda credenciais em **envs** nomeadas (por exemplo `postgres-local`, `stripe-test`, `aws-dev`), combina uma ou mais envs e gera o `.env` de um projeto, sem que os valores passem pelo chat do Claude.
+Cofre local e criptografado de variáveis de ambiente. Guarda credenciais em envs nomeadas (por exemplo `postgres-local`, `stripe-test`, `aws-dev`), combina uma ou mais envs e gera o `.env` de um projeto, sem que os valores passem pelo chat do Claude.
 
 Três interfaces sobre o mesmo núcleo:
 
-- **TUI** (Bubble Tea): para uso interativo, visualizar, criar, editar e carregar várias envs de uma vez.
-- **CLI** (Cobra): para scripts e para o Claude, com saída previsível, `--json` e códigos de saída estáveis, nunca interativa quando `--json` está ligado.
-- **Skill do Claude Code**: ensina o Claude a descobrir, sugerir e carregar envs sempre pedindo permissão e sem nunca ver os valores.
+- **TUI** (Bubble Tea). Interface interativa para visualizar, criar, editar e carregar várias envs de uma vez.
+- **CLI** (Cobra). Para scripts e para o Claude, com saída previsível, `--json` e códigos de saída estáveis; nunca interativa quando `--json` está ligado.
+- **Skill do Claude Code**. Ensina o Claude a descobrir, sugerir e carregar envs, sempre pedindo permissão e sem nunca ver os valores.
 
 O cofre é global: as envs são reaproveitadas entre projetos. Sincronização entre máquinas e compartilhamento com time estão fora do escopo atual.
 
@@ -28,6 +28,22 @@ Exige Go 1.23 ou mais novo.
 
 Ainda não publicado. Quando existir, será um `tap` opcional, sem substituir os dois métodos acima.
 
+### Wrapper de shell
+
+`envault load` sem `--out` exporta as variáveis direto no terminal atual, e para isso precisa de uma função de shell instalada no rc. Adicione ao `~/.zshrc`:
+
+```
+eval "$(envault shell-init zsh)"
+```
+
+Para bash, a mesma linha no `~/.bashrc`, trocando `zsh` por `bash`. Para fish (3.1 ou mais novo), no `config.fish`:
+
+```
+envault shell-init fish | source
+```
+
+A função intercepta só `load` e `envault` sem argumentos (a TUI); os demais comandos passam direto para o binário. Sem o wrapper instalado, `load` sem `--out` sai com o código 2 e orienta a instalar o wrapper ou usar `--out`.
+
 ## Uso rápido
 
 ```
@@ -35,8 +51,10 @@ envault init
 envault new postgres-local --description "Postgres local via docker-compose" --tags db,local
 envault list
 envault plan postgres-local
-envault load postgres-local --out .env
+envault load postgres-local
 ```
+
+Com o wrapper de shell instalado (veja a seção acima), `load` exporta `DATABASE_URL` e as demais chaves direto no terminal atual. Sem o wrapper, use `envault load postgres-local --out .env` para gravar um arquivo.
 
 Rodar `envault` sem argumentos, com o terminal em modo interativo, abre a TUI. Sem terminal interativo, mostra o help.
 
@@ -44,10 +62,10 @@ Rodar `envault` sem argumentos, com o terminal em modo interativo, abre a TUI. S
 
 ### Telas
 
-1. **Lista** (tela inicial): duas colunas. À esquerda, as envs com nome, número de chaves, última edição e marcador de seleção. À direita, descrição, tags e chaves da env focada, com valores sempre mascarados.
-2. **Detalhe**: tabela de chaves e valores mascarados, em tela cheia.
-3. **Montagem** (envs marcadas): lista ordenável, prévia do resultado com origem de cada chave e indicador de conflito, checklist de chaves do `.env.example` quando existir, escolha de destino e, se ele já existir, escolha entre sobrescrever, mesclar ou cancelar.
-4. **Confirmações**: modal reutilizável para apagar, sobrescrever e revisar o diff pós-edição.
+1. **Lista** (tela inicial). Duas colunas: à esquerda, as envs com nome, número de chaves, última edição e marcador de seleção; à direita, descrição, tags e chaves da env focada, com valores sempre mascarados. Se o cofre não existir no local resolvido, a TUI o cria antes de listar e mostra no status onde ficou o `vault.enc`; a CLI continua saindo com o código 4 nessa mesma situação.
+2. **Detalhe**. Tabela de chaves e valores mascarados, em tela cheia.
+3. **Montagem** (envs marcadas). Lista ordenável, prévia do resultado com origem de cada chave e indicador de conflito, checklist de chaves do `.env.example` quando existir, e escolha de destino. Com o wrapper de shell instalado, o destino padrão é o terminal atual e `t` alterna para arquivo; sem o wrapper, só arquivo está disponível e a tela orienta como instalar o `shell-init`. No destino arquivo, se ele já existir, a tela oferece sobrescrever, mesclar ou cancelar.
+4. **Confirmações**. Modal reutilizável para apagar, sobrescrever e revisar o diff pós-edição.
 
 ### Atalhos
 
@@ -66,6 +84,7 @@ Rodar `envault` sem argumentos, com o terminal em modo interativo, abre a TUI. S
 | `i` | Importar um `.env` |
 | `d` | Apagar, com confirmação digitando o nome |
 | `K`/`J` | Reordenar na tela de montagem |
+| `t` | Na montagem, alternar destino entre terminal e arquivo |
 | `/` | Filtrar por nome, descrição, tag ou nome de chave |
 | `?` | Ajuda com todos os atalhos |
 | `q`, `ctrl+c` | Sair ou voltar |
@@ -90,8 +109,9 @@ Regras gerais: mensagens para humanos vão em stderr, dados em stdout. Com `--js
 | `envault rename <atual> <novo>` | Renomeia uma env. |
 | `envault copy <origem> <destino>` | Duplica uma env. |
 | `envault delete <env> [--yes]` | Remove uma env. Sem `--yes`, exige terminal interativo e confirmação digitando o nome. |
-| `envault plan <env>... [--out .env] [--template f] [--no-template] [--only-template]` | Mostra em JSON o que `load` faria. Sempre JSON, nunca grava nada. |
-| `envault load <env>... [--out .env] [--force \| --merge] [--template f] [--no-template] [--only-template] [--json]` | Grava o arquivo de destino. Sem `--force` nem `--merge`, recusa quando o destino já existe. |
+| `envault plan <env>... [--out .env] [--template f] [--no-template] [--only-template]` | Mostra em JSON o que `load` faria. Sempre JSON, nunca grava nada. Sem `--out`, `target` é `{"mode":"shell"}`; com `--out`, `target` traz `path`, `exists` e `gitignored`. |
+| `envault load <env>... [--out .env] [--force \| --merge] [--template f] [--no-template] [--only-template] [--json]` | Sem `--out`, exporta as variáveis no terminal atual pelo wrapper de `shell-init`, sem gravar arquivo e sem imprimir valores; sem o wrapper instalado, sai com o código 2. Com `--out`, grava o arquivo de destino e recusa quando ele já existe, a menos que `--force` ou `--merge` seja passado; essas duas flags só valem com `--out`. |
+| `envault shell-init bash\|zsh\|fish` | Imprime a função de shell que faz `load` e a TUI exportarem no terminal atual. Instale com `eval "$(envault shell-init zsh)"` (ou `bash`) no rc do shell, ou `envault shell-init fish \| source` no `config.fish`. |
 | `envault exec -e a,b [--template f] [--no-template] [--only-template] [--] <comando...>` | Roda um comando com as variáveis combinadas injetadas no ambiente, sem criar arquivo. O `--` antes do comando é opcional. |
 | `envault shell <env>... [--shell bash\|zsh\|fish]` | Imprime uma linha `export` por variável, para uso com `eval`. Sem `--shell`, detecta o dialeto pela variável `$SHELL`; se não reconhecer, usa `bash`. |
 | `envault skill install [--dir d]` | Instala a Skill em `~/.claude/skills/envault/SKILL.md`, ou no diretório passado em `--dir`. |
@@ -149,7 +169,9 @@ Depois de gravar, `load` verifica se o destino está coberto pelo `.gitignore` d
 }
 ```
 
-`load --json` devolve o mesmo formato de `plan`, com o campo adicional `"mode"` (`"created"`, `"overwritten"` ou `"merged"`).
+Sem `--out`, `target` vira `{ "mode": "shell" }`, o destino do `load` no terminal.
+
+`load --json` devolve o mesmo formato de `plan`, com o campo adicional `"mode"`: `"created"`, `"overwritten"` ou `"merged"` com `--out`, ou `"exported"` quando exporta no terminal pelo wrapper de shell.
 
 ### Códigos de saída
 
@@ -193,26 +215,26 @@ Ao salvar e fechar o editor:
 - Arquivo vazio, ignorando comentários, numa env nova: a criação é cancelada.
 - Conteúdo com o mesmo hash do original: nada é gravado.
 - Erro de parse: o editor reabre com o conteúdo digitado e o erro como comentário no topo, por exemplo `# ERRO linha 4: chave inválida "1KEY"`. Salvar vazio nesse momento desiste da edição.
-- Conteúdo válido: é calculado um diff por chave (adicionadas, removidas, alteradas, nunca os valores), pedida confirmação e só então gravado.
+- Conteúdo válido: o envault calcula um diff por chave (adicionadas, removidas, alteradas, nunca os valores), pede confirmação e só então grava.
 
 ## Modelo de ameaça
 
 O envault protege contra:
 
-- Vazamento do arquivo do cofre isolado: sem a chave, `vault.enc` é inútil.
-- Commit acidental de segredos: `load` avisa quando o destino não está no `.gitignore`.
-- Segredos aparecendo na conversa do Claude: a Skill e as regras de permissão bloqueiam leitura de valores.
+- Vazamento do arquivo do cofre isolado. Sem a chave, `vault.enc` é inútil.
+- Commit acidental de segredos. `load` avisa quando o destino não está no `.gitignore`.
+- Segredos aparecendo na conversa do Claude. A Skill e as regras de permissão bloqueiam leitura de valores.
 
 O envault não protege contra:
 
-- Alguém com acesso à conta de usuário da máquina: enquanto a chave estiver em arquivo (antes da migração para o keychain), quem lê a home lê a chave.
+- Alguém com acesso à conta de usuário da máquina. Enquanto a chave estiver em arquivo, antes da migração para o keychain, quem lê a home lê a chave.
 - Malware local rodando com os privilégios do usuário.
 - Undo ou swap de arquivo criados por alguns editores durante a edição.
-- Zeração de memória: a linguagem Go não garante isso, então valores decifrados podem permanecer na memória do processo por um tempo.
+- Zeração de memória. A linguagem Go não garante isso; valores decifrados podem permanecer na memória do processo por um tempo.
 
 ## Skill do Claude Code
 
-A Skill ensina o Claude a montar o `.env` de um projeto sem nunca ver valores de variáveis: ele trabalha só com nomes de envs, descrições e nomes de chaves, e sempre pede confirmação explícita antes de gravar qualquer arquivo.
+A Skill ensina o Claude a montar o `.env` de um projeto sem nunca ver valores de variáveis. Ele trabalha só com nomes de envs, descrições e nomes de chaves, e sempre pede confirmação explícita antes de gravar qualquer arquivo.
 
 Instalação:
 

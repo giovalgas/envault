@@ -114,7 +114,7 @@ func TestEditorParseErrorReopens(t *testing.T) {
 func TestEditorRepeatedErrorKeepsSingleHeader(t *testing.T) {
 	script := editortest.Install(t,
 		editortest.Step{Content: "1KEY=x\n"},
-		editortest.Step{Keep: true},
+		editortest.Step{Content: "# ERRO linha 1: chave inválida \"1KEY\"\n2KEY=x\n"},
 		editortest.Step{Content: ""},
 	)
 	opts := editorFlowOptions(false)
@@ -127,6 +127,55 @@ func TestEditorRepeatedErrorKeepsSingleHeader(t *testing.T) {
 		t.Fatalf("third opening = %q", third)
 	}
 	assertEditorTempGone(t, script, 3)
+}
+
+func keepSteps(n int) []editortest.Step {
+	steps := make([]editortest.Step, n)
+	for i := range steps {
+		steps[i] = editortest.Step{Keep: true}
+	}
+	return steps
+}
+
+func TestEditorReopenedFileSavedUnchangedCancels(t *testing.T) {
+	steps := append([]editortest.Step{{Content: "A=1\n1KEY=x\n"}}, keepSteps(5)...)
+	script := editortest.Install(t, steps...)
+	opts := editorFlowOptions(true)
+	_, err := Edit(context.Background(), domain.Env{Name: "nova"}, opts)
+	if !errors.Is(err, ErrCanceled) || !strings.Contains(err.Error(), `"1KEY"`) {
+		t.Fatalf("err = %v, want ErrCanceled citing the key", err)
+	}
+	if script.Calls() != 2 {
+		t.Fatalf("editor opened %d times, want 2", script.Calls())
+	}
+	assertEditorTempGone(t, script, 2)
+}
+
+func TestEditorReopenedFileWithoutFixCancels(t *testing.T) {
+	bad := "A=1\n1KEY=x\n"
+	steps := append([]editortest.Step{{Content: bad}, {Content: bad + "\n"}}, keepSteps(5)...)
+	script := editortest.Install(t, steps...)
+	opts := editorFlowOptions(false)
+	_, err := Edit(context.Background(), existingEditorEnv(), opts)
+	if !errors.Is(err, ErrCanceled) {
+		t.Fatalf("err = %v, want ErrCanceled", err)
+	}
+	if script.Calls() != 2 {
+		t.Fatalf("editor opened %d times, want 2", script.Calls())
+	}
+}
+
+func TestEditorValidNewEnvOpensOnce(t *testing.T) {
+	steps := append([]editortest.Step{{Content: "# @description: nova\n# @tags: db\nK=v\n"}}, keepSteps(5)...)
+	script := editortest.Install(t, steps...)
+	opts := editorFlowOptions(true)
+	result, err := Edit(context.Background(), domain.Env{Name: "nova"}, opts)
+	if err != nil || !result.Changed {
+		t.Fatalf("result = %+v, err = %v", result, err)
+	}
+	if script.Calls() != 1 {
+		t.Fatalf("editor opened %d times, want 1", script.Calls())
+	}
 }
 
 func TestEditorGiveUpAfterError(t *testing.T) {

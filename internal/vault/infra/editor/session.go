@@ -71,8 +71,14 @@ type Session struct {
 	dir      string
 	path     string
 	original [sha256.Size]byte
+	rejected *rejection
 	once     sync.Once
 	closeErr error
+}
+
+type rejection struct {
+	content [sha256.Size]byte
+	cause   error
 }
 
 func Open(initial domain.Env, opts Options) (*Session, error) {
@@ -142,6 +148,9 @@ func (s *Session) Review(runErr error) (Result, error) {
 	if sha256.Sum256(data) == s.original {
 		return Result{Env: s.initial.Clone()}, nil
 	}
+	if s.rejected != nil && s.rejected.content == userContentSum(data) {
+		return Result{}, fmt.Errorf("%w, o arquivo voltou sem corrigir o erro: %w", ErrCanceled, s.rejected.cause)
+	}
 	parsed, err := dotenv.Parse(data)
 	if err != nil {
 		return Result{}, s.reopen(data, err)
@@ -175,6 +184,7 @@ func (s *Session) canceledBy(data []byte) bool {
 }
 
 func (s *Session) reopen(data []byte, cause error) error {
+	s.rejected = &rejection{content: userContentSum(data), cause: cause}
 	content := errorHeaderPrefix + errorMessage(cause) + "\n" + stripErrorHeaders(string(data))
 	if err := writePrivate(s.path, []byte(content), s.opts.GOOS); err != nil {
 		return fmt.Errorf("regravar arquivo temporário: %w", err)
@@ -188,6 +198,11 @@ func errorMessage(cause error) string {
 		return parseErr.Error()
 	}
 	return strings.ReplaceAll(cause.Error(), "\n", " ")
+}
+
+func userContentSum(data []byte) [sha256.Size]byte {
+	content := strings.TrimRight(stripErrorHeaders(string(data)), "\r\n")
+	return sha256.Sum256([]byte(content))
 }
 
 func stripErrorHeaders(content string) string {

@@ -30,6 +30,7 @@ func commands(app *App) []*cobra.Command {
 		newLoadCmd(app),
 		newExecCmd(app),
 		newShellCmd(app),
+		newShellInitCmd(app),
 		newSkillCmd(app),
 		newKeyCmd(app),
 		newCompletionCmd(app),

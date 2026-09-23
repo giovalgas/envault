@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 
@@ -71,6 +72,9 @@ func TestListNotInitialized(t *testing.T) {
 	code := ta.runWith(newListCmd(ta.App), "list")
 	if code != ExitNotInitialized {
 		t.Fatalf("code = %d, stderr = %q", code, ta.Err.String())
+	}
+	if _, err := os.Stat(ta.Home); !os.IsNotExist(err) {
+		t.Fatalf("list não deveria criar %q, stat err = %v", ta.Home, err)
 	}
 }
 

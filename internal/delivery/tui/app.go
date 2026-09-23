@@ -77,6 +77,8 @@ type ResultMsg struct {
 	Err     error
 }
 
+type InitVaultFunc func(ctx context.Context) (created bool, location string, err error)
+
 type Options struct {
 	Clipboard func(string) error
 	Actions   map[Action]ActionHandler
@@ -85,6 +87,8 @@ type Options struct {
 	LogPath   string
 	Input     io.Reader
 	Output    io.Writer
+	Report    io.Writer
+	InitVault InitVaultFunc
 }
 
 type screen int
@@ -113,6 +117,12 @@ type statusMsg struct {
 	err  error
 }
 
+type vaultInitializedMsg struct {
+	created  bool
+	location string
+	err      error
+}
+
 var errNameMismatch = errors.New("o nome digitado não confere")
 
 type Model struct {
@@ -135,6 +145,8 @@ type Model struct {
 	status     string
 	statusErr  bool
 	statusWarn bool
+	initVault  InitVaultFunc
+	exported   string
 }
 
 func New(ctx context.Context, store Store, opts Options) Model {
@@ -162,6 +174,7 @@ func New(ctx context.Context, store Store, opts Options) Model {
 		width:     defaultWidth,
 		height:    defaultHeight,
 		list:      newListModel(),
+		initVault: opts.InitVault,
 	}
 }
 
@@ -190,18 +203,41 @@ func Run(ctx context.Context, store Store, opts Options) (err error) {
 	if opts.Output != nil {
 		programOpts = append(programOpts, tea.WithOutput(opts.Output))
 	}
-	_, err = tea.NewProgram(New(ctx, store, opts), programOpts...).Run()
+	final, err := tea.NewProgram(New(ctx, store, opts), programOpts...).Run()
 	if err != nil && ctx.Err() != nil {
 		return ctx.Err()
 	}
 	if err != nil {
 		return fmt.Errorf("executar TUI: %w", err)
 	}
+	return reportExported(opts.Report, final)
+}
+
+func reportExported(w io.Writer, final tea.Model) error {
+	m, ok := final.(Model)
+	if !ok || m.exported == "" || w == nil {
+		return nil
+	}
+	if _, err := fmt.Fprintf(w, "envault: %s\n", m.exported); err != nil {
+		return fmt.Errorf("informar exportação: %w", err)
+	}
 	return nil
 }
 
 func (m Model) Init() tea.Cmd {
-	return m.loadCmd("", "")
+	return m.initCmd()
+}
+
+func (m Model) initCmd() tea.Cmd {
+	initVault := m.initVault
+	if initVault == nil {
+		return m.loadCmd("", "")
+	}
+	ctx := m.ctx
+	return func() tea.Msg {
+		created, location, err := initVault(ctx)
+		return vaultInitializedMsg{created: created, location: location, err: err}
+	}
 }
 
 func (m Model) loadCmd(focus, status string) tea.Cmd {
@@ -260,6 +296,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 		m.help.Width = msg.Width
 		return m, nil
+	case vaultInitializedMsg:
+		return m.onVaultInitialized(msg)
 	case envsLoadedMsg:
 		return m.onEnvsLoaded(msg), nil
 	case detailLoadedMsg:
@@ -286,10 +324,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.onComposePlan(msg), nil
 	case composeWrittenMsg:
 		return m.onComposeWritten(msg)
+	case composeExportedMsg:
+		return m.onComposeExported(msg)
 	case tea.KeyMsg:
 		return m.handleKey(msg)
 	}
 	return m, nil
+}
+
+func (m Model) onVaultInitialized(msg vaultInitializedMsg) (tea.Model, tea.Cmd) {
+	if msg.err != nil {
+		m.logger.Printf("inicializar cofre: %v", msg.err)
+		return m.setStatus("", fmt.Errorf("inicializar cofre: %w", msg.err)), nil
+	}
+	status := ""
+	if msg.created {
+		status = fmt.Sprintf("cofre criado em %s", msg.location)
+	}
+	return m, m.loadCmd("", status)
 }
 
 func (m Model) onEnvsLoaded(msg envsLoadedMsg) Model {

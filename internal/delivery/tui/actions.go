@@ -26,6 +26,9 @@ type Deps struct {
 	ImportEnv      *vaultusecase.ImportEnv
 	PlanLoad       *composeusecase.PlanLoad
 	LoadEnvFile    *composeusecase.LoadEnvFile
+	ShellExports   *composeusecase.LoadShellExports
+	ExportFile     string
+	ExportDialect  string
 	Dir            string
 }
 
@@ -105,7 +108,14 @@ func (d Deps) compose(_ context.Context, req ActionRequest) tea.Cmd {
 	for i, env := range req.Marked {
 		names[i] = env.Name
 	}
-	deps := composeDeps{plan: d.PlanLoad, load: d.LoadEnvFile, dir: d.Dir}
+	deps := composeDeps{
+		plan:       d.PlanLoad,
+		load:       d.LoadEnvFile,
+		export:     d.ShellExports,
+		exportFile: d.ExportFile,
+		dialect:    d.ExportDialect,
+		dir:        d.Dir,
+	}
 	return func() tea.Msg { return composeOpenMsg{names: names, deps: deps} }
 }
 

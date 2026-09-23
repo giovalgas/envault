@@ -107,6 +107,48 @@ func TestEditParseErrorReopensThenGiveUp(t *testing.T) {
 	}
 }
 
+func TestEditEditorReopenedUnchangedCancels(t *testing.T) {
+	ta := newTestApp(t)
+	ta.seed(t, editSeedEnv())
+	script := editortest.Install(t, invalidThenUnchanged("A=1\nB=2\n1KEY=x\n", 5)...)
+	if code := ta.runWith(newEditCmd(ta.App), "edit", "a"); code != ExitCanceled {
+		t.Fatalf("code = %d, stderr = %q", code, ta.Err.String())
+	}
+	if script.Calls() != 2 {
+		t.Fatalf("editor opened %d time(s), want 2", script.Calls())
+	}
+	if env := newGetEnv(t, ta); !env.SameContent(editSeedEnv()) {
+		t.Fatalf("env changed: %+v", env)
+	}
+}
+
+func TestEditWithEditorOpensOnce(t *testing.T) {
+	ta := newTestApp(t)
+	ta.seed(t, editSeedEnv())
+	script := editortest.Install(t, editortest.Step{Content: "# @description: banco\n# @tags: db\nA=valor-a-secreto\n"}, editortest.Step{Keep: true})
+	if code := ta.runWith(newEditCmd(ta.App), "edit", "a"); code != ExitOK {
+		t.Fatalf("code = %d, stderr = %q", code, ta.Err.String())
+	}
+	if script.Calls() != 1 {
+		t.Fatalf("editor opened %d time(s), want 1", script.Calls())
+	}
+	if env := newGetEnv(t, ta); !slices.Equal(env.Keys(), []string{"A"}) {
+		t.Fatalf("keys = %q", env.Keys())
+	}
+}
+
+func TestEditWithVimAppliesChange(t *testing.T) {
+	ta := newTestApp(t)
+	ta.seed(t, editSeedEnv())
+	installVim(t, "normal! GoC=valor-c-novo", "wq")
+	if code := ta.runWith(newEditCmd(ta.App), "edit", "a"); code != ExitOK {
+		t.Fatalf("code = %d, stderr = %q", code, ta.Err.String())
+	}
+	if env := newGetEnv(t, ta); !slices.Equal(env.Keys(), []string{"A", "B", "C"}) {
+		t.Fatalf("keys = %q", env.Keys())
+	}
+}
+
 func TestEditNotFound(t *testing.T) {
 	ta := newTestApp(t)
 	ta.initVault(t)

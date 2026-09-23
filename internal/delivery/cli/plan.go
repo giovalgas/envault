@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -12,14 +13,44 @@ import (
 )
 
 const (
-	planDefaultOut = ".env"
-	planFlagOut    = "out"
+	planFlagOut     = "out"
+	targetModeShell = "shell"
 )
 
 type planTarget struct {
+	Path       string
+	Exists     bool
+	Gitignored composedomain.GitignoreStatus
+	Shell      bool
+}
+
+type planFileTarget struct {
 	Path       string                        `json:"path"`
 	Exists     bool                          `json:"exists"`
 	Gitignored composedomain.GitignoreStatus `json:"gitignored"`
+}
+
+type planShellTarget struct {
+	Mode string `json:"mode"`
+}
+
+func (t planTarget) MarshalJSON() ([]byte, error) {
+	if t.Shell {
+		return json.Marshal(planShellTarget{Mode: targetModeShell})
+	}
+	return json.Marshal(planFileTarget{Path: t.Path, Exists: t.Exists, Gitignored: t.Gitignored})
+}
+
+var shellTarget = planTarget{Shell: true}
+
+func outRequested(cmd *cobra.Command, out string) (bool, error) {
+	if !cmd.Flags().Changed(planFlagOut) {
+		return false, nil
+	}
+	if out == "" {
+		return false, usageError(fmt.Errorf("--%s exige o caminho do arquivo", planFlagOut))
+	}
+	return true, nil
 }
 
 type planTemplate struct {
@@ -50,11 +81,16 @@ func newPlanCmd(app *App) *cobra.Command {
 	var tmplFlags *templateFlags
 	planCmd := &cobra.Command{
 		Use:   "plan <env>...",
-		Short: "Mostra em JSON o que load gravaria, sem gravar nada e sem valores",
+		Short: "Mostra em JSON o que load faria, sem gravar nada e sem valores",
 		Long: "plan combina as envs na ordem dada (a última vence), aplica o template e descreve o resultado em JSON: " +
-			"chaves, origem, conflitos, faltando e extras. Nunca grava arquivo e nunca inclui valores.",
+			"chaves, origem, conflitos, faltando e extras. Com --out, target descreve o arquivo (path, exists, gitignored); " +
+			"sem --out, target é {\"mode\":\"shell\"}, o destino do load no terminal. Nunca grava arquivo e nunca inclui valores.",
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			toFile, err := outRequested(cmd, out)
+			if err != nil {
+				return err
+			}
 			source, err := tmplFlags.resolve()
 			if err != nil {
 				return err
@@ -68,10 +104,14 @@ func newPlanCmd(app *App) *cobra.Command {
 			if err != nil {
 				return composeError(err)
 			}
-			return writeJSON(app.Stdout, planBuildEnvelope(result.Plan, source, planTargetOf(result.Target)))
+			target := shellTarget
+			if toFile {
+				target = planTargetOf(result.Target)
+			}
+			return writeJSON(app.Stdout, planBuildEnvelope(result.Plan, source, target))
 		},
 	}
-	planCmd.Flags().StringVar(&out, planFlagOut, planDefaultOut, "arquivo de destino avaliado")
+	planCmd.Flags().StringVar(&out, planFlagOut, "", "arquivo de destino avaliado; sem ele, avalia o load no terminal")
 	tmplFlags = templateBind(planCmd)
 	planCmd.Flags().Bool(jsonFlag, true, "saída em JSON (sempre ligada)")
 	return alwaysJSON(planCmd)

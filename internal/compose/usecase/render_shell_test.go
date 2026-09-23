@@ -27,8 +27,11 @@ func TestShellRender(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v", dialect, err)
 		}
-		if got != want {
-			t.Fatalf("%s:\n%s\nwant\n%s", dialect, got, want)
+		if got.Script != want {
+			t.Fatalf("%s:\n%s\nwant\n%s", dialect, got.Script, want)
+		}
+		if !slices.Equal(got.Plan.Conflicts, []string{"X"}) {
+			t.Fatalf("%s: conflicts = %v", dialect, got.Plan.Conflicts)
 		}
 	}
 	if !slices.Equal(ShellDialects(), []string{ShellBash, ShellZsh, ShellFish}) {
