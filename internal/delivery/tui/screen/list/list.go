@@ -266,11 +266,8 @@ func (l Model) toggleMark() Model {
 }
 
 func (l Model) SelectionView(st theme.Styles, width int) string {
-	text, empty := l.selection.Panel()
-	if empty {
-		return st.Subtle.Render(theme.Truncate(text, width))
-	}
-	return st.Label.Render(theme.Truncate(text, width))
+	text, _ := l.selection.SelectedEnvsLine()
+	return st.Subtle.Render(theme.Truncate(text, width))
 }
 
 func (l Model) View(st theme.Styles, width, height int) string {
@@ -350,8 +347,8 @@ func envSummary(st theme.Styles, env vaultusecase.EnvView, width, height int) []
 			lines = append(lines, st.Subtle.Render(fmt.Sprintf("  mais %d", len(rows)-i)))
 			break
 		}
-		keyWidth := max(width-lipgloss.Width(row.Value)-3, 1)
-		lines = append(lines, "  "+theme.PadRight(theme.Truncate(row.Key, keyWidth), keyWidth)+" "+st.Masked.Render(row.Value))
+		key := viewmodel.KeyColumn(row, width-2)
+		lines = append(lines, "  "+key+theme.KeyValueSeparator+st.Masked.Render(row.Value))
 	}
 	return lines
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/giovalgas/envault/internal/delivery/tui/theme"
 	vaultusecase "github.com/giovalgas/envault/internal/vault/usecase"
 )
 
@@ -46,6 +47,11 @@ func DetailRows(env vaultusecase.EnvView, focus int, reveal bool) []VarRow {
 		}
 	}
 	return rows
+}
+
+func KeyColumn(row VarRow, width int) string {
+	keyWidth := max(width-len(row.Value)-len(theme.KeyValueSeparator), 1)
+	return theme.Truncate(row.Key, keyWidth)
 }
 
 func ListMeta(env vaultusecase.EnvView) string {

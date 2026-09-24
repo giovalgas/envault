@@ -257,9 +257,9 @@ func TestAppComposeHookReceivesMarkedInOrder(t *testing.T) {
 	}}
 	sess := startSession(t, newTestVault(t), opts)
 	sess.typeText("jj ")
-	sess.waitFor("1 marcada")
+	sess.waitFor("SELECTED_ENVS=stripe-test")
 	sess.typeText("kk ")
-	sess.waitFor("2 marcadas")
+	sess.waitFor("SELECTED_ENVS=stripe-test,postgres-local")
 	sess.typeText("l")
 	sess.waitFor("montagem concluída")
 	sess.finish()

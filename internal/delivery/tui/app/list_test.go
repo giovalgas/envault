@@ -36,9 +36,9 @@ func TestListFilterFlow(t *testing.T) {
 func TestListMarkToggle(t *testing.T) {
 	sess := startSession(t, newTestVault(t), Options{})
 	sess.typeText(" j ")
-	sess.waitFor("2 marcadas")
+	sess.waitFor("SELECTED_ENVS=postgres-local,redis")
 	sess.typeText("k ")
-	sess.waitFor("1 marcada")
+	sess.waitFor("SELECTED_ENVS=redis")
 	m, out := sess.finish()
 
 	if !slices.Equal(m.list.Marked(), []string{"redis"}) {

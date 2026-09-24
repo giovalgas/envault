@@ -74,8 +74,7 @@ func (h harness) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (h harness) View() string {
 	st := theme.DefaultStyles()
-	info := viewmodel.HeaderInfo(h.list.Len(), len(h.list.Marked()))
-	return strings.Join([]string{info, h.list.SelectionView(st, termWidth), h.list.View(st, termWidth, termHeight-2)}, "\n")
+	return strings.Join([]string{"envault", h.list.SelectionView(st, termWidth), h.list.View(st, termWidth, termHeight-2)}, "\n")
 }
 
 type session struct {
@@ -154,10 +153,19 @@ func TestListRendersMasked(t *testing.T) {
 	sess := start(t)
 	h, out := sess.finish()
 	view := h.View()
-	for _, want := range []string{"postgres-local", "redis", "stripe-test", "DATABASE_URL", "PGPASSWORD", viewmodel.MaskedValue, "Postgres local via docker-compose", "db, local", "2 chaves"} {
+	for _, want := range []string{
+		"postgres-local", "redis", "stripe-test", "DATABASE_URL", "PGPASSWORD", viewmodel.MaskedValue,
+		"Postgres local via docker-compose", "db, local", "2 chaves",
+		"SELECTED_ENVS=",
+		"DATABASE_URL" + theme.KeyValueSeparator + viewmodel.MaskedValue,
+	} {
 		if !strings.Contains(view, want) {
 			t.Errorf("view não contém %q:\n%s", want, view)
 		}
+	}
+	lines := strings.Split(view, "\n")
+	if lines[0] != "envault" {
+		t.Fatalf("cabeçalho = %q, esperado só envault sem contagem", lines[0])
 	}
 	assertNoSecrets(t, "view da lista", view)
 	assertNoSecrets(t, "saída da lista", out)
@@ -197,19 +205,44 @@ func TestListFilterEscClears(t *testing.T) {
 func TestListMarkToggleShowsPositions(t *testing.T) {
 	sess := start(t)
 	sess.tm.Type(" j ")
-	sess.waitFor("2 marcadas")
+	sess.waitFor("SELECTED_ENVS=postgres-local,redis")
 	sess.tm.Type("k ")
-	sess.waitFor("1 marcada")
+	sess.waitFor("SELECTED_ENVS=redis")
 	h, out := sess.finish()
 
 	if !slices.Equal(h.list.Marked(), []string{"redis"}) {
 		t.Fatalf("marcadas = %v, esperado [redis]", h.list.Marked())
 	}
 	view := h.View()
-	if !strings.Contains(view, "[1] redis") || !strings.Contains(view, "seleção, a última vence: 1. redis") {
-		t.Fatalf("view não mostra a posição e o painel da seleção:\n%s", view)
+	if !strings.Contains(view, "[1] redis") || !strings.Contains(view, "SELECTED_ENVS=redis") {
+		t.Fatalf("view não mostra a posição e a linha da seleção:\n%s", view)
 	}
 	assertNoSecrets(t, "saída da marcação", out)
+}
+
+func TestListSelectedEnvsLineExact(t *testing.T) {
+	sess := start(t)
+	h := harness{list: New().SetEnvs(seedEnvs(), "")}
+	line := func(view string) string {
+		for _, l := range strings.Split(view, "\n") {
+			if strings.HasPrefix(l, "SELECTED_ENVS=") {
+				return l
+			}
+		}
+		return ""
+	}
+	if got := line(h.View()); got != "SELECTED_ENVS=" {
+		t.Fatalf("linha sem seleção = %q", got)
+	}
+	sess.tm.Type(" ")
+	sess.waitFor("SELECTED_ENVS=postgres-local")
+	sess.tm.Type("j ")
+	sess.waitFor("SELECTED_ENVS=postgres-local,redis")
+	h, out := sess.finish()
+	if got := line(h.View()); got != "SELECTED_ENVS=postgres-local,redis" {
+		t.Fatalf("linha com várias envs = %q", got)
+	}
+	assertNoSecrets(t, "saída da seleção", out)
 }
 
 func TestListQuitIntent(t *testing.T) {
@@ -284,8 +317,8 @@ func TestListEmptyVault(t *testing.T) {
 	if _, ok := l.Focused(); ok {
 		t.Fatal("lista vazia não deveria ter foco")
 	}
-	if text, _ := l.selection.Panel(); !strings.Contains(l.SelectionView(theme.DefaultStyles(), termWidth), text) {
-		t.Fatal("painel vazio da seleção ausente")
+	if text, _ := l.selection.SelectedEnvsLine(); !strings.Contains(l.SelectionView(theme.DefaultStyles(), termWidth), text) {
+		t.Fatal("linha vazia da seleção ausente")
 	}
 }
 

@@ -55,13 +55,16 @@ func TestSelectionKeepRenameMove(t *testing.T) {
 	}
 }
 
-func TestSelectionPanelAndLabels(t *testing.T) {
-	if text, empty := NewSelection(nil).Panel(); !empty || text != "seleção: nenhuma env marcada" {
-		t.Fatalf("painel vazio = %q %v", text, empty)
+func TestSelectedEnvsLineAndLabels(t *testing.T) {
+	if text, empty := NewSelection(nil).SelectedEnvsLine(); !empty || text != "SELECTED_ENVS=" {
+		t.Fatalf("linha vazia = %q %v", text, empty)
+	}
+	if text, empty := NewSelection([]string{"stripe-test"}).SelectedEnvsLine(); empty || text != "SELECTED_ENVS=stripe-test" {
+		t.Fatalf("linha com uma env = %q", text)
 	}
 	s := NewSelection([]string{"stripe-test", "postgres-local"})
-	if text, empty := s.Panel(); empty || text != "seleção, a última vence: 1. stripe-test  2. postgres-local" {
-		t.Fatalf("painel = %q", text)
+	if text, empty := s.SelectedEnvsLine(); empty || text != "SELECTED_ENVS=stripe-test,postgres-local" {
+		t.Fatalf("linha com várias envs = %q", text)
 	}
 	if label, marked := s.MarkLabel("postgres-local"); !marked || label != "[2]" {
 		t.Fatalf("label marcada = %q %v", label, marked)
@@ -87,20 +90,5 @@ func TestSelectionPickFollowsOrder(t *testing.T) {
 	picked[1].Tags[0] = "mudou"
 	if envs[0].Tags[0] != "t" {
 		t.Fatal("pick deveria clonar as envs")
-	}
-}
-
-func TestHeaderInfo(t *testing.T) {
-	for _, tt := range []struct {
-		envs, marked int
-		want         string
-	}{
-		{3, 0, "3 envs"},
-		{3, 1, "3 envs, 1 marcada"},
-		{3, 2, "3 envs, 2 marcadas"},
-	} {
-		if got := HeaderInfo(tt.envs, tt.marked); got != tt.want {
-			t.Errorf("HeaderInfo(%d, %d) = %q", tt.envs, tt.marked, got)
-		}
 	}
 }

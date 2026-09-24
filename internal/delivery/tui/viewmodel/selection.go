@@ -12,8 +12,7 @@ const (
 	MarkOn  = "[x]"
 	MarkOff = "[ ]"
 
-	emptySelectionText = "seleção: nenhuma env marcada"
-	selectionLabel     = "seleção, a última vence: "
+	selectedEnvsPrefix = "SELECTED_ENVS="
 )
 
 type Selection struct {
@@ -90,11 +89,11 @@ func (s Selection) MarkLabel(name string) (label string, marked bool) {
 	return fmt.Sprintf("%-*s", width, fmt.Sprintf("[%d]", pos)), true
 }
 
-func (s Selection) Panel() (text string, empty bool) {
+func (s Selection) SelectedEnvsLine() (text string, empty bool) {
 	if len(s.names) == 0 {
-		return emptySelectionText, true
+		return selectedEnvsPrefix, true
 	}
-	return selectionLabel + strings.Join(s.Numbered(), "  "), false
+	return selectedEnvsPrefix + strings.Join(s.names, ","), false
 }
 
 func (s Selection) Pick(envs []vaultusecase.EnvView) []vaultusecase.EnvView {
@@ -108,16 +107,4 @@ func (s Selection) Pick(envs []vaultusecase.EnvView) []vaultusecase.EnvView {
 		}
 	}
 	return out
-}
-
-func HeaderInfo(envs, marked int) string {
-	info := fmt.Sprintf("%d envs", envs)
-	switch marked {
-	case 0:
-	case 1:
-		info += ", 1 marcada"
-	default:
-		info += fmt.Sprintf(", %d marcadas", marked)
-	}
-	return info
 }

@@ -110,9 +110,9 @@ func TestSelectionSurvivesReopen(t *testing.T) {
 	s := newStack(t, seedEnvs()...)
 	sess := s.start(t)
 	sess.typeText("jj ")
-	sess.waitFor("1 marcada")
+	sess.waitFor("SELECTED_ENVS=stripe-test")
 	sess.typeText("kk ")
-	sess.waitFor("2 marcadas")
+	sess.waitFor("SELECTED_ENVS=stripe-test,postgres-local")
 	sess.typeText("q")
 	sess.collect()
 
@@ -121,7 +121,7 @@ func TestSelectionSurvivesReopen(t *testing.T) {
 	}
 
 	sess = s.start(t)
-	sess.waitSeen("1. stripe-test  2. postgres-local")
+	sess.waitSeen("SELECTED_ENVS=stripe-test,postgres-local")
 	m, out := sess.finish()
 	if !slices.Equal(m.list.Marked(), []string{"stripe-test", "postgres-local"}) {
 		t.Fatalf("marcadas ao reabrir = %v", m.list.Marked())
@@ -133,8 +133,8 @@ func TestSelectionSurvivesReopen(t *testing.T) {
 	if !strings.Contains(rowWith(view, "redis"), viewmodel.MarkOff) {
 		t.Fatalf("redis deveria aparecer desmarcada:\n%s", view)
 	}
-	if !strings.Contains(view, "seleção, a última vence: 1. stripe-test  2. postgres-local") {
-		t.Fatalf("painel da seleção ausente:\n%s", view)
+	if !strings.Contains(view, "SELECTED_ENVS=stripe-test,postgres-local") {
+		t.Fatalf("linha da seleção ausente:\n%s", view)
 	}
 	assertNoSecrets(t, "saída ao reabrir", out)
 }
@@ -143,9 +143,9 @@ func TestSelectionUnmarkSaves(t *testing.T) {
 	s := newStack(t, seedEnvs()...)
 	sess := s.start(t)
 	sess.typeText(" j ")
-	sess.waitFor("2 marcadas")
+	sess.waitFor("SELECTED_ENVS=postgres-local,redis")
 	sess.typeText("k ")
-	sess.waitFor("1 marcada")
+	sess.waitFor("SELECTED_ENVS=redis")
 	sess.typeText("q")
 	sess.collect()
 
@@ -161,7 +161,7 @@ func TestSelectionFileHasNoValues(t *testing.T) {
 	s := newStack(t, seedEnvs()...)
 	sess := s.start(t)
 	sess.typeText(" j ")
-	sess.waitFor("2 marcadas")
+	sess.waitFor("SELECTED_ENVS=postgres-local,redis")
 	sess.typeText("q")
 	sess.collect()
 
@@ -200,14 +200,14 @@ func TestSelectionRenameSelectedEnv(t *testing.T) {
 	s := newStack(t, seedEnvs()...)
 	sess := s.start(t)
 	sess.typeText(" j ")
-	sess.waitFor("2 marcadas")
+	sess.waitFor("SELECTED_ENVS=postgres-local,redis")
 	sess.typeText("kr")
 	sess.waitFor("Renomear postgres-local")
 	sess.press(tea.KeyCtrlU)
 	sess.typeText("pg")
 	sess.press(tea.KeyEnter)
 	sess.waitFor("renomeada para pg")
-	sess.waitSeen("1. pg  2. redis")
+	sess.waitSeen("SELECTED_ENVS=pg,redis")
 	sess.typeText("q")
 	m, _ := sess.collect()
 
@@ -223,13 +223,13 @@ func TestSelectionDeleteSelectedEnv(t *testing.T) {
 	s := newStack(t, seedEnvs()...)
 	sess := s.start(t)
 	sess.typeText(" j ")
-	sess.waitFor("2 marcadas")
+	sess.waitFor("SELECTED_ENVS=postgres-local,redis")
 	sess.typeText("kd")
 	sess.waitFor("Apagar postgres-local")
 	sess.typeText("postgres-local")
 	sess.press(tea.KeyEnter)
 	sess.waitFor("postgres-local apagada")
-	sess.waitSeen("1. redis")
+	sess.waitSeen("SELECTED_ENVS=redis")
 	sess.typeText("q")
 	m, _ := sess.collect()
 
@@ -247,7 +247,7 @@ func TestSelectionComposeReorderSaves(t *testing.T) {
 	sess.typeText("J")
 	sess.waitFor("prévia: b, a")
 	sess.press(tea.KeyEsc)
-	sess.waitSeen("1. b  2. a")
+	sess.waitSeen("SELECTED_ENVS=b,a")
 	sess.typeText("q")
 	m, _ := sess.collect()
 
@@ -262,7 +262,7 @@ func TestSelectionComposeReorderSaves(t *testing.T) {
 	}
 
 	sess = s.start(t)
-	sess.waitSeen("1. b  2. a")
+	sess.waitSeen("SELECTED_ENVS=b,a")
 	sess.typeText("l")
 	sess.waitFor("prévia: b, a")
 	sess.finish()
@@ -289,7 +289,7 @@ func TestSelectionRestoreKeepsFileWhenUnchanged(t *testing.T) {
 	content := `{"schema_version":1,"updated_at":"2026-09-23T12:00:00Z","envs":["redis"]}`
 	writeFile(t, s.selectionPath(), content)
 	sess := s.start(t)
-	sess.waitSeen("1. redis")
+	sess.waitSeen("SELECTED_ENVS=redis")
 	sess.typeText("q")
 	sess.collect()
 

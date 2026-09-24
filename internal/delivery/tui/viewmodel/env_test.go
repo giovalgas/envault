@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/giovalgas/envault/internal/delivery/tui/theme"
 	vaultusecase "github.com/giovalgas/envault/internal/vault/usecase"
 )
 
@@ -74,6 +75,26 @@ func TestKeyCount(t *testing.T) {
 		if got := KeyCount(n); got != want {
 			t.Errorf("KeyCount(%d) = %q", n, got)
 		}
+	}
+}
+
+func TestKeyColumnKeepsFixedGap(t *testing.T) {
+	row := VarRow{Key: "DATABASE_URL", Value: MaskedValue}
+	narrow := KeyColumn(row, 40)
+	wide := KeyColumn(row, 120)
+	if narrow != row.Key || wide != row.Key {
+		t.Fatalf("KeyColumn não deveria truncar a chave: narrow=%q wide=%q", narrow, wide)
+	}
+	if narrow != wide {
+		t.Fatalf("a distância entre chave e valor deveria ser fixa: narrow=%q wide=%q", narrow, wide)
+	}
+}
+
+func TestKeyColumnTruncatesWhenTooNarrow(t *testing.T) {
+	row := VarRow{Key: "DATABASE_URL", Value: MaskedValue}
+	got := KeyColumn(row, len(row.Value)+len(theme.KeyValueSeparator)+4)
+	if got == row.Key || len([]rune(got)) > 4 {
+		t.Fatalf("KeyColumn deveria truncar a chave para caber, ficou %q", got)
 	}
 }
 

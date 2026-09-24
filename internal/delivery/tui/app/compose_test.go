@@ -194,7 +194,7 @@ func openComposeAB(t *testing.T, s stack) *session {
 	t.Helper()
 	sess := s.start(t)
 	sess.typeText(" j ")
-	sess.waitFor("2 marcadas")
+	sess.waitFor("SELECTED_ENVS=a,b")
 	sess.typeText("l")
 	sess.waitFor("prévia: a, b")
 	return sess

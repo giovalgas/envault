@@ -7,12 +7,13 @@ import (
 )
 
 const (
-	CursorMarker  = "> "
-	NoCursor      = "  "
-	Ellipsis      = "…"
-	PaneBorder    = 2
-	LeftPaneRatio = 0.45
-	MinPaneWidth  = 24
+	CursorMarker      = "> "
+	NoCursor          = "  "
+	Ellipsis          = "…"
+	PaneBorder        = 2
+	LeftPaneRatio     = 0.45
+	MinPaneWidth      = 24
+	KeyValueSeparator = ": "
 )
 
 var (

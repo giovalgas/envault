@@ -22,7 +22,6 @@ import (
 	"github.com/giovalgas/envault/internal/delivery/tui/screen/detail"
 	"github.com/giovalgas/envault/internal/delivery/tui/screen/list"
 	"github.com/giovalgas/envault/internal/delivery/tui/theme"
-	"github.com/giovalgas/envault/internal/delivery/tui/viewmodel"
 	vaultusecase "github.com/giovalgas/envault/internal/vault/usecase"
 )
 
@@ -624,9 +623,7 @@ func (m Model) View() string {
 }
 
 func (m Model) headerView() string {
-	title := m.styles.Title.Render("envault")
-	info := viewmodel.HeaderInfo(m.list.Len(), len(m.list.Marked()))
-	return title + "  " + m.styles.Subtle.Render(info)
+	return m.styles.Title.Render("envault")
 }
 
 func (m Model) statusView() string {
