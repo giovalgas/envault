@@ -13,6 +13,7 @@ import (
 )
 
 func (m Model) openCompose(msg composeOpenMsg) (tea.Model, tea.Cmd) {
+	msg.deps.Clipboard = m.clipboard
 	next, cmd := compose.New(m.ctx, msg.names, msg.deps).PlanCmd()
 	m.compose = next
 	m.screen = screenCompose
@@ -76,6 +77,18 @@ func (m Model) onComposeExported(msg compose.ExportedMsg) (tea.Model, tea.Cmd) {
 	}
 	m.exported = viewmodel.ExportedText(msg.Result)
 	return m, m.quitCmd()
+}
+
+func (m Model) onComposeCopied(msg compose.CopiedMsg) (tea.Model, tea.Cmd) {
+	if msg.Err != nil {
+		m.logger.Printf("copiar montagem: %v", msg.Err)
+		return m.setStatus("", fmt.Errorf("copiar para o clipboard: %w", msg.Err)), nil
+	}
+	m = m.closeCompose()
+	return m.onResult(ResultMsg{
+		Status:  viewmodel.CopiedText(msg.Result),
+		Warning: viewmodel.CopiedWarning(msg.Result),
+	})
 }
 
 func (m Model) onComposeWritten(msg compose.WrittenMsg) (tea.Model, tea.Cmd) {

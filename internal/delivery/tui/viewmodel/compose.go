@@ -93,6 +93,17 @@ func ExportedText(result composeusecase.LoadShellExportsResult) string {
 	return text
 }
 
+func CopiedText(result composeusecase.RenderEnvFileResult) string {
+	return fmt.Sprintf(".env com %d variáveis de %s copiado para o clipboard", len(result.Plan.Vars), strings.Join(result.Plan.Envs, ", "))
+}
+
+func CopiedWarning(result composeusecase.RenderEnvFileResult) string {
+	if missing := result.Plan.Missing; len(missing) > 0 {
+		return "sem valor no template: " + strings.Join(missing, ", ")
+	}
+	return ""
+}
+
 func WrittenText(target string, result composeusecase.LoadEnvFileResult) string {
 	verb := "gravado"
 	switch result.Mode {

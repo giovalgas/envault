@@ -345,6 +345,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.onComposeWritten(msg)
 	case compose.ExportedMsg:
 		return m.onComposeExported(msg)
+	case compose.CopiedMsg:
+		return m.onComposeCopied(msg)
 	case tea.KeyMsg:
 		return m.handleKey(msg)
 	}

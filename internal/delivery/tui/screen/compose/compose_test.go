@@ -75,6 +75,7 @@ func newDeps(t *testing.T) Deps {
 		Plan:     composeusecase.NewPlanLoad(source, files, ignore),
 		Load:     composeusecase.NewLoadEnvFile(source, files, ignore),
 		Export:   composeusecase.NewLoadShellExports(composeusecase.NewRenderShell(source), files),
+		Render:   composeusecase.NewRenderEnvFile(source),
 		Dialect:  composeusecase.ShellZsh,
 		Dir:      t.TempDir(),
 	}
@@ -390,4 +391,68 @@ func finalModel(t *testing.T, tm *teatest.TestModel) tea.Model {
 		final = tm.FinalModel(t)
 	}
 	return final
+}
+
+func plannedModel(t *testing.T, deps Deps) Model {
+	t.Helper()
+	c, cmd := New(context.Background(), []string{"b", "a"}, deps).PlanCmd()
+	msg, ok := cmd().(PlanMsg)
+	if !ok || msg.Err != nil {
+		t.Fatalf("prévia: %+v", msg)
+	}
+	c, _ = c.OnPlan(msg)
+	return c
+}
+
+func TestComposeClipboardMatchesWrittenFile(t *testing.T) {
+	var copied []string
+	deps := newDeps(t)
+	deps.Clipboard = func(text string) error {
+		copied = append(copied, text)
+		return nil
+	}
+	c := plannedModel(t, deps)
+	_, cmd, effect := c.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
+	if cmd == nil || effect.Status != copyingStatus {
+		t.Fatalf("y: efeito %+v", effect)
+	}
+	msg, ok := cmd().(CopiedMsg)
+	if !ok || msg.Err != nil {
+		t.Fatalf("cópia: %+v", msg)
+	}
+	write, err := c.WriteCmd(composeusecase.RefuseExisting)
+	if err != nil {
+		t.Fatalf("WriteCmd: %v", err)
+	}
+	if written, ok := write().(WrittenMsg); !ok || written.Err != nil {
+		t.Fatalf("gravar: %+v", written)
+	}
+	data, err := os.ReadFile(filepath.Join(deps.Dir, viewmodel.DefaultEnvFile))
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if !slices.Equal(copied, []string{string(data)}) {
+		t.Fatalf("clipboard = %q, .env = %q", copied, data)
+	}
+	if !strings.Contains(string(data), "X="+secretXFromA) || msg.Result.Plan.Conflicts[0] != "X" {
+		t.Fatalf("precedência errada: %q %+v", data, msg.Result.Plan)
+	}
+}
+
+func TestComposeClipboardRefusals(t *testing.T) {
+	deps := newDeps(t)
+	y := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}}
+	if _, cmd, effect := plannedModel(t, deps).Update(y); cmd != nil || effect.Err == nil {
+		t.Fatalf("sem clipboard: efeito %+v", effect)
+	}
+	deps.Clipboard = func(string) error { return nil }
+	if _, cmd, effect := New(context.Background(), []string{"a"}, deps).Update(y); cmd != nil || effect.Err == nil {
+		t.Fatalf("sem prévia: efeito %+v", effect)
+	}
+	c := plannedModel(t, deps)
+	c, _, _ = c.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
+	c, cmd, effect := c.Update(y)
+	if effect.Intent != IntentNone || !strings.HasSuffix(c.targetValue(), "y") {
+		t.Fatalf("y no destino: efeito %+v destino %q cmd %v", effect, c.targetValue(), cmd != nil)
+	}
 }

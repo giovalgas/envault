@@ -96,6 +96,7 @@ func runTUI(ctx context.Context, session app.TUISession) error {
 		PlanLoad:       compose.PlanLoad,
 		LoadEnvFile:    compose.LoadEnvFile,
 		ShellExports:   compose.LoadShellExports,
+		RenderEnvFile:  compose.RenderEnvFile,
 		ExportFile:     session.Export.File,
 		ExportDialect:  session.Export.Dialect,
 	})

@@ -1,6 +1,7 @@
 package compose_test
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -295,5 +296,92 @@ func TestLoadEnvNotFound(t *testing.T) {
 	}
 	if entries := planTestEntries(t, dir); len(entries) != 0 {
 		t.Fatalf("entries = %v", entries)
+	}
+}
+
+func TestLoadClipboardCopiesEnvFile(t *testing.T) {
+	dir := planTestWorkdir(t)
+	ta := newTestApp(t)
+	planTestSeed(t, ta)
+	if code := ta.Run("load", "--clipboard", "a", "b"); code != presenter.ExitOK {
+		t.Fatalf("code = %d stderr %s", code, ta.Err.String())
+	}
+	want := "X=2\nDATABASE_URL=" + planTestSecretDB + "\nAPP_URL=" + planTestSecretApp + "\n"
+	if !slices.Equal(ta.Clipboard, []string{want}) {
+		t.Fatalf("clipboard = %q", ta.Clipboard)
+	}
+	if ta.Out.Len() != 0 {
+		t.Fatalf("stdout = %q", ta.Out.String())
+	}
+	if !strings.Contains(ta.Err.String(), "Copiado para o clipboard o .env com 3 variáveis de a, b") || !strings.Contains(ta.Err.String(), "X") {
+		t.Fatalf("stderr = %q", ta.Err.String())
+	}
+	planTestNoSecrets(t, ta)
+	if entries := planTestEntries(t, dir); len(entries) != 0 {
+		t.Fatalf("entries = %v", entries)
+	}
+}
+
+func TestLoadClipboardMatchesOutFile(t *testing.T) {
+	dir := planTestWorkdir(t)
+	planTestWrite(t, filepath.Join(dir, composeusecase.DefaultTemplateFile), "PORT=3000\nX=\nSENTRY_DSN=\n")
+	ta := newTestApp(t)
+	planTestSeed(t, ta)
+	if code := ta.Run("load", "--out", ".env", "b", "a", "--only-template"); code != presenter.ExitOK {
+		t.Fatalf("out code = %d stderr %s", code, ta.Err.String())
+	}
+	if code := ta.Run("load", "--clipboard", "b", "a", "--only-template", "--json"); code != presenter.ExitOK {
+		t.Fatalf("clipboard code = %d stderr %s", code, ta.Err.String())
+	}
+	if got := planTestRead(t, filepath.Join(dir, ".env")); !slices.Equal(ta.Clipboard, []string{got}) {
+		t.Fatalf("clipboard = %q, .env = %q", ta.Clipboard, got)
+	}
+	out := planTestDecode(t, ta.Out.Bytes())
+	if out.Mode != presenter.LoadModeCopied || out.Target.Mode != "clipboard" || !slices.Equal(out.Missing, []string{"SENTRY_DSN"}) {
+		t.Fatalf("out = %+v", out)
+	}
+	planTestNoSecrets(t, ta)
+}
+
+func TestLoadClipboardFlagConflicts(t *testing.T) {
+	planTestWorkdir(t)
+	ta := newTestApp(t)
+	planTestSeed(t, ta)
+	for _, args := range [][]string{
+		{"load", "a", "--clipboard", "--out", ".env"},
+		{"load", "a", "--clipboard", "--force"},
+		{"load", "a", "--clipboard", "--merge"},
+	} {
+		if code := ta.Run(args...); code != presenter.ExitUsage {
+			t.Fatalf("%v: code = %d", args, code)
+		}
+	}
+	if len(ta.Clipboard) != 0 {
+		t.Fatalf("clipboard = %q", ta.Clipboard)
+	}
+}
+
+func TestLoadClipboardFailure(t *testing.T) {
+	planTestWorkdir(t)
+	ta := newTestApp(t)
+	planTestSeed(t, ta)
+	ta.ClipboardErr = errors.New("sem xclip")
+	if code := ta.Run("load", "--clipboard", "a"); code != presenter.ExitError {
+		t.Fatalf("code = %d", code)
+	}
+	if !strings.Contains(ta.Err.String(), "copiar para o clipboard: sem xclip") {
+		t.Fatalf("stderr = %q", ta.Err.String())
+	}
+}
+
+func TestLoadClipboardEnvNotFound(t *testing.T) {
+	planTestWorkdir(t)
+	ta := newTestApp(t)
+	planTestSeed(t, ta)
+	if code := ta.Run("load", "--clipboard", "a", "nao-existe"); code != presenter.ExitEnvNotFound {
+		t.Fatalf("code = %d", code)
+	}
+	if len(ta.Clipboard) != 0 {
+		t.Fatalf("clipboard = %q", ta.Clipboard)
 	}
 }

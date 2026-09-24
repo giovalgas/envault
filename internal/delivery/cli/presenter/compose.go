@@ -13,17 +13,19 @@ import (
 
 const (
 	targetModeShell     = "shell"
+	targetModeClipboard = "clipboard"
 	LoadModeCreated     = string(composeusecase.LoadCreated)
 	LoadModeOverwritten = string(composeusecase.LoadOverwritten)
 	LoadModeMerged      = string(composeusecase.LoadMerged)
 	LoadModeExported    = "exported"
+	LoadModeCopied      = "copied"
 )
 
 type planTarget struct {
 	Path       string
 	Exists     bool
 	Gitignored composeusecase.GitignoreStatus
-	Shell      bool
+	Mode       string
 }
 
 type planFileTarget struct {
@@ -32,18 +34,21 @@ type planFileTarget struct {
 	Gitignored composeusecase.GitignoreStatus `json:"gitignored"`
 }
 
-type planShellTarget struct {
+type planModeTarget struct {
 	Mode string `json:"mode"`
 }
 
 func (t planTarget) MarshalJSON() ([]byte, error) {
-	if t.Shell {
-		return json.Marshal(planShellTarget{Mode: targetModeShell})
+	if t.Mode != "" {
+		return json.Marshal(planModeTarget{Mode: t.Mode})
 	}
 	return json.Marshal(planFileTarget{Path: t.Path, Exists: t.Exists, Gitignored: t.Gitignored})
 }
 
-var shellTarget = planTarget{Shell: true}
+var (
+	shellTarget     = planTarget{Mode: targetModeShell}
+	clipboardTarget = planTarget{Mode: targetModeClipboard}
+)
 
 type planTemplate struct {
 	Path  *string `json:"path"`
@@ -105,6 +110,17 @@ func (p *Presenter) LoadedShell(result composeusecase.LoadShellExportsResult, so
 		target:  shellTarget,
 		mode:    LoadModeExported,
 		summary: fmt.Sprintf("Exportadas %d variáveis de %s no terminal.", result.Written, joined(result.Plan.Envs)),
+		asJSON:  asJSON,
+	})
+}
+
+func (p *Presenter) LoadedClipboard(result composeusecase.RenderEnvFileResult, source composeusecase.TemplateView, asJSON bool) error {
+	return p.loadRun(loadOutcome{
+		plan:    result.Plan,
+		source:  source,
+		target:  clipboardTarget,
+		mode:    LoadModeCopied,
+		summary: fmt.Sprintf("Copiado para o clipboard o .env com %d variáveis de %s.", len(result.Plan.Vars), joined(result.Plan.Envs)),
 		asJSON:  asJSON,
 	})
 }
@@ -299,6 +315,10 @@ func LoadShellError(err error, outFlag, dialect string) error {
 		return fmt.Errorf("%w: %s aponta para um diretório", ErrValidation, composeusecase.ExportFileVar)
 	}
 	return ComposeError(err)
+}
+
+func ClipboardError(err error) error {
+	return fmt.Errorf("copiar para o clipboard: %w", err)
 }
 
 func LoadFileError(err error, out, forceFlag, mergeFlag string) error {
