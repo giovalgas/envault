@@ -11,14 +11,16 @@ import (
 )
 
 const (
-	loadFlagForce = "force"
-	loadFlagMerge = "merge"
+	loadFlagForce     = "force"
+	loadFlagMerge     = "merge"
+	loadFlagClipboard = "clipboard"
 )
 
 type loadOptions struct {
 	out       string
 	force     bool
 	merge     bool
+	clipboard bool
 	asJSON    bool
 	tmplFlags *templateFlags
 }
@@ -27,11 +29,12 @@ func NewLoadCmd(a *app.App) *cobra.Command {
 	opts := &loadOptions{}
 	loadCmd := &cobra.Command{
 		Use:   "load <env>...",
-		Short: "Exporta no terminal atual as envs combinadas na ordem dada (a última vence), ou grava com --out",
+		Short: "Exporta no terminal atual as envs combinadas na ordem dada (a última vence), ou grava com --out ou copia com --clipboard",
 		Long: "load combina as envs e aplica o template. Sem --out, exporta as variáveis no shell atual pelo wrapper " +
 			"de shell-init, sem gravar .env e sem imprimir valores; sem o wrapper, sai com 2. Com --out, grava o arquivo " +
 			"e recusa quando ele já existe, a menos que --force (substitui) ou --merge (mantém chaves locais e atualiza " +
-			"as das envs) seja passado. Nunca altera o .gitignore: só avisa quando o arquivo não está coberto por ele.",
+			"as das envs) seja passado. Com --clipboard, copia para o clipboard o mesmo conteúdo que --out gravaria, sem " +
+			"tocar em arquivo. Nunca altera o .gitignore: só avisa quando o arquivo não está coberto por ele.",
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			toFile, err := outRequested(cmd, opts.out)
@@ -41,21 +44,28 @@ func NewLoadCmd(a *app.App) *cobra.Command {
 			if err := opts.validate(toFile); err != nil {
 				return err
 			}
-			if !toFile {
-				return loadShell(cmd.Context(), a, opts, args)
+			switch {
+			case opts.clipboard:
+				return loadClipboard(cmd.Context(), a, opts, args)
+			case toFile:
+				return loadFile(cmd.Context(), a, opts, args)
 			}
-			return loadFile(cmd.Context(), a, opts, args)
+			return loadShell(cmd.Context(), a, opts, args)
 		},
 	}
 	loadCmd.Flags().StringVar(&opts.out, planFlagOut, "", "arquivo de destino; sem ele, exporta no terminal pelo wrapper de shell-init")
 	loadCmd.Flags().BoolVar(&opts.force, loadFlagForce, false, "substitui o arquivo de --out se ele existir")
 	loadCmd.Flags().BoolVar(&opts.merge, loadFlagMerge, false, "mescla com o arquivo de --out existente, preservando a ordem e as chaves locais")
+	loadCmd.Flags().BoolVar(&opts.clipboard, loadFlagClipboard, false, "copia para o clipboard o conteúdo do .env em vez de gravar arquivo")
 	opts.tmplFlags = templateBind(loadCmd)
 	loadCmd.Flags().BoolVar(&opts.asJSON, presenter.JSONFlag, false, "saída em JSON")
 	return loadCmd
 }
 
 func (o *loadOptions) validate(toFile bool) error {
+	if o.clipboard && toFile {
+		return presenter.FlagsConflict(loadFlagClipboard, planFlagOut)
+	}
 	if o.force && o.merge {
 		return presenter.FlagsConflict(loadFlagForce, loadFlagMerge)
 	}
@@ -116,4 +126,24 @@ func loadFile(ctx context.Context, a *app.App, opts *loadOptions, args []string)
 		return presenter.LoadFileError(err, opts.out, loadFlagForce, loadFlagMerge)
 	}
 	return a.Presenter().LoadedFile(result, source, opts.out, opts.asJSON)
+}
+
+func loadClipboard(ctx context.Context, a *app.App, opts *loadOptions, args []string) error {
+	compose := a.Compose()
+	source, err := opts.tmplFlags.resolve(ctx, compose)
+	if err != nil {
+		return err
+	}
+	result, err := compose.RenderEnvFile.Execute(ctx, composeusecase.RenderEnvFileInput{
+		Envs:         args,
+		Template:     source,
+		OnlyTemplate: opts.tmplFlags.only,
+	})
+	if err != nil {
+		return presenter.ComposeError(err)
+	}
+	if err := a.Clipboard(result.Content); err != nil {
+		return presenter.ClipboardError(err)
+	}
+	return a.Presenter().LoadedClipboard(result, source, opts.asJSON)
 }

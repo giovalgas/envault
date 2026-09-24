@@ -25,6 +25,7 @@ type KeyMap struct {
 	PrevPane   key.Binding
 	Write      key.Binding
 	Target     key.Binding
+	Clipboard  key.Binding
 	Filter     key.Binding
 	Help       key.Binding
 	Quit       key.Binding
@@ -56,6 +57,7 @@ func DefaultKeyMap() KeyMap {
 		PrevPane:   key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("shift+tab", "painel anterior")),
 		Write:      key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "carregar montagem")),
 		Target:     key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "terminal ou arquivo")),
+		Clipboard:  key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "copiar .env")),
 		Filter:     key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filtrar")),
 		Help:       key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "ajuda")),
 		Quit:       key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q/ctrl+c", "sair/voltar")),
@@ -126,7 +128,7 @@ func (k KeyMap) AllGroups() [][]key.Binding {
 		{k.Up, k.Down, k.Mark, k.Compose, k.Open},
 		{k.Reveal, k.Copy},
 		{k.New, k.Edit, k.Duplicate, k.Rename, k.Import, k.Delete},
-		{k.MoveUp, k.MoveDown, k.NextPane, k.Expand, k.Target, k.Write},
+		{k.MoveUp, k.MoveDown, k.NextPane, k.Expand, k.Target, k.Write, k.Clipboard},
 		{k.Filter, k.Help, k.Quit, k.Back},
 	}
 }

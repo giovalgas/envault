@@ -7,6 +7,7 @@ import (
 	"os"
 	"slices"
 
+	"github.com/atotto/clipboard"
 	"golang.org/x/term"
 
 	composeusecase "github.com/giovalgas/envault/internal/compose/usecase"
@@ -96,6 +97,7 @@ type ComposeUseCases struct {
 	PlanLoad           *composeusecase.PlanLoad
 	LoadEnvFile        *composeusecase.LoadEnvFile
 	LoadShellExports   *composeusecase.LoadShellExports
+	RenderEnvFile      *composeusecase.RenderEnvFile
 	ExecWithEnvs       *composeusecase.ExecWithEnvs
 	RunCommand         *composeusecase.RunCommand
 	RenderShell        *composeusecase.RenderShell
@@ -123,6 +125,7 @@ func NewComposeUseCases(deps ComposeDeps) ComposeUseCases {
 		PlanLoad:           composeusecase.NewPlanLoad(deps.Envs, deps.Files, deps.Gitignore),
 		LoadEnvFile:        composeusecase.NewLoadEnvFile(deps.Envs, deps.Files, deps.Gitignore),
 		LoadShellExports:   composeusecase.NewLoadShellExports(render, deps.Exports),
+		RenderEnvFile:      composeusecase.NewRenderEnvFile(deps.Envs),
 		ExecWithEnvs:       composeusecase.NewExecWithEnvs(deps.Envs, deps.Environment),
 		RunCommand:         composeusecase.NewRunCommand(deps.Processes),
 		RenderShell:        render,
@@ -167,6 +170,7 @@ type App struct {
 	LoadConfig func() (config.Config, error)
 	Wire       Wiring
 	IsTerminal func(stream any) bool
+	Clipboard  func(text string) error
 }
 
 func NewApp(version string, wire Wiring) *App {
@@ -178,6 +182,7 @@ func NewApp(version string, wire Wiring) *App {
 		LoadConfig: config.FromOS,
 		Wire:       wire,
 		IsTerminal: isTerminal,
+		Clipboard:  clipboard.WriteAll,
 	}
 }
 

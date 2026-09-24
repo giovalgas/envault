@@ -23,6 +23,9 @@ type Harness struct {
 	Err      *bytes.Buffer
 	Keychain bool
 
+	Clipboard    []string
+	ClipboardErr error
+
 	execute   Executor
 	stdinTTY  bool
 	stdoutTTY bool
@@ -56,6 +59,7 @@ func New(t *testing.T, execute Executor, wire Wire) *Harness {
 		Version:    "test",
 		LoadConfig: config.FromOS,
 		IsTerminal: h.IsTerminal,
+		Clipboard:  h.WriteClipboard,
 	}
 	h.App.Wire = wire(h)
 	return h
@@ -76,6 +80,14 @@ func (h *Harness) IsTerminal(stream any) bool {
 	default:
 		return false
 	}
+}
+
+func (h *Harness) WriteClipboard(text string) error {
+	if h.ClipboardErr != nil {
+		return h.ClipboardErr
+	}
+	h.Clipboard = append(h.Clipboard, text)
+	return nil
 }
 
 func (h *Harness) SetTerminal(stdin, stdout bool) {

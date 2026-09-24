@@ -22,11 +22,14 @@ const (
 	fromColumn        = 20
 	writingStatus     = "gravando..."
 	exportingStatus   = "exportando..."
+	copyingStatus     = "copiando..."
+	clipboardHint     = "y: copiar .env para o clipboard"
 )
 
 var (
 	errPlanPending = errors.New("aguarde a prévia da montagem")
 	errNoTarget    = errors.New("informe o arquivo de destino")
+	errNoClipboard = errors.New("clipboard indisponível")
 )
 
 type Deps struct {
@@ -34,6 +37,8 @@ type Deps struct {
 	Plan       *composeusecase.PlanLoad
 	Load       *composeusecase.LoadEnvFile
 	Export     *composeusecase.LoadShellExports
+	Render     *composeusecase.RenderEnvFile
+	Clipboard  func(string) error
 	ExportFile string
 	Dialect    string
 	Dir        string
@@ -41,6 +46,10 @@ type Deps struct {
 
 func (d Deps) terminalReady() bool {
 	return d.Export != nil && d.ExportFile != ""
+}
+
+func (d Deps) clipboardReady() bool {
+	return d.Render != nil && d.Clipboard != nil
 }
 
 func (d Deps) terminalHint() string {
@@ -97,6 +106,11 @@ type PlanMsg struct {
 
 type ExportedMsg struct {
 	Result composeusecase.LoadShellExportsResult
+	Err    error
+}
+
+type CopiedMsg struct {
+	Result composeusecase.RenderEnvFileResult
 	Err    error
 }
 
@@ -253,6 +267,26 @@ func (c Model) exportCmd() (tea.Cmd, error) {
 	}, nil
 }
 
+func (c Model) copyCmd() (tea.Cmd, error) {
+	if !c.deps.clipboardReady() {
+		return nil, errNoClipboard
+	}
+	if !c.planned {
+		return nil, errPlanPending
+	}
+	ctx, names, deps, tmpl := c.ctx, c.order.Names(), c.deps, c.tmpl
+	return func() tea.Msg {
+		result, err := deps.Render.Execute(ctx, composeusecase.RenderEnvFileInput{Envs: names, Template: tmpl})
+		if err != nil {
+			return CopiedMsg{Err: err}
+		}
+		if err := deps.Clipboard(result.Content); err != nil {
+			return CopiedMsg{Err: err}
+		}
+		return CopiedMsg{Result: result}
+	}, nil
+}
+
 func (c Model) Update(msg tea.KeyMsg) (Model, tea.Cmd, Effect) {
 	if key.Matches(msg, c.keys.Back) || msg.Type == tea.KeyCtrlC {
 		return c, nil, Effect{Intent: IntentClose}
@@ -267,6 +301,8 @@ func (c Model) Update(msg tea.KeyMsg) (Model, tea.Cmd, Effect) {
 		return c.confirm()
 	case key.Matches(msg, c.keys.Target):
 		return c.switchDest()
+	case key.Matches(msg, c.keys.Clipboard):
+		return c.copy()
 	case key.Matches(msg, c.keys.NextPane):
 		c = c.cyclePane(1)
 	case key.Matches(msg, c.keys.PrevPane):
@@ -318,6 +354,14 @@ func (c Model) confirm() (Model, tea.Cmd, Effect) {
 		return c, nil, errorEffect(err)
 	}
 	return c, cmd, statusEffect(exportingStatus)
+}
+
+func (c Model) copy() (Model, tea.Cmd, Effect) {
+	cmd, err := c.copyCmd()
+	if err != nil {
+		return c, nil, errorEffect(err)
+	}
+	return c, cmd, statusEffect(copyingStatus)
 }
 
 func (c Model) switchDest() (Model, tea.Cmd, Effect) {
@@ -412,6 +456,9 @@ func (c Model) leftView(st theme.Styles, width int) string {
 	}
 	lines = append(lines, "")
 	lines = append(lines, c.destLines(st, width)...)
+	if c.deps.clipboardReady() {
+		lines = append(lines, st.Subtle.Render(theme.Truncate(clipboardHint, width)))
+	}
 	return strings.Join(lines, "\n")
 }
 

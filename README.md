@@ -91,7 +91,7 @@ Any donations are **greatly appreciated!**
 
 ## Getting Started
 
-For copying values with `y` on Linux you'll need [xclip](https://github.com/astrand/xclip), [xsel](https://github.com/kfish/xsel) or [wl-clipboard](https://github.com/bugaevc/wl-clipboard).
+For copying values or the composed `.env` with `y` (and `load --clipboard`) on Linux you'll need [xclip](https://github.com/astrand/xclip), [xsel](https://github.com/kfish/xsel) or [wl-clipboard](https://github.com/bugaevc/wl-clipboard).
 
 ### Installation
 
@@ -162,7 +162,7 @@ Running `envault` without arguments, in an interactive terminal, opens the TUI. 
 
 1. **List** (starting screen). The header shows only `envault`. Two columns: on the left, the envs with name, key count, last edit and selection marker; on the right, description, tags and keys of the focused env, values always masked, each value right after its key name, on the same line, with a short separator. A fixed panel below the header shows the global selection as `SELECTED_ENVS=a,b,c`, names in marking order separated by commas, no spaces, and `SELECTED_ENVS=` when nothing is selected; each marked env carries its matching number (`[1]`, `[2]`) in the list, the rest show `[ ]`. If the vault doesn't exist at the resolved location, the TUI creates it before listing and shows in the status bar where `vault.enc` ended up; the CLI keeps exiting with code 4 in that same situation.
 2. **Detail**. A full screen table of keys and masked values.
-3. **Compose** (marked envs). Sortable list, a preview of the result with the origin of each key and a conflict indicator, a checklist of `.env.example` keys when one exists, and a choice of destination. With the shell wrapper installed, the default destination is the current terminal and `t` switches to a file; without the wrapper, only the file destination is available and the screen explains how to install `shell-init`. On the file destination, if it already exists, the screen offers to overwrite, merge or cancel.
+3. **Compose** (marked envs). Sortable list, a preview of the result with the origin of each key and a conflict indicator, a checklist of `.env.example` keys when one exists, and a choice of destination. With the shell wrapper installed, the default destination is the current terminal and `t` switches to a file; without the wrapper, only the file destination is available and the screen explains how to install `shell-init`. On the file destination, if it already exists, the screen offers to overwrite, merge or cancel. On any destination, `y` copies the composed `.env` to the clipboard instead, with the same content and precedence the file would get, and writes nothing to disk.
 4. **Confirmations**. A reusable modal for deleting, overwriting and reviewing the post-edit diff.
 
 ### Shortcuts
@@ -174,7 +174,7 @@ Running `envault` without arguments, in an interactive terminal, opens the TUI. 
 | `l` | Load the marked envs (compose) |
 | `enter` | Open detail |
 | `v` | Reveal or hide the value of the focused row |
-| `y` | Copy the value to the clipboard |
+| `y` | Copy the value to the clipboard; on compose, copy the whole composed `.env` |
 | `n` | Create a new env (opens the editor) |
 | `e` | Edit env (opens the editor) |
 | `c` | Duplicate env |
@@ -189,7 +189,7 @@ Running `envault` without arguments, in an interactive terminal, opens the TUI. 
 
 The footer of each screen shows at most six shortcuts; `?` opens the help with the full list above.
 
-No TUI screen shows a value without explicit confirmation from `v`, and copying with `y` never prints the value to the screen.
+No TUI screen shows a value without explicit confirmation from `v`, and copying with `y`, of a single value or of the composed `.env`, never prints the value to the screen.
 
 ### Selection
 
@@ -214,7 +214,7 @@ General rules: messages for humans go to stderr, data goes to stdout. With `--js
 | `envault copy <source> <destination>` | Duplicates an env. |
 | `envault delete <env> [--yes]` | Removes an env. Without `--yes`, requires an interactive terminal and confirmation by typing the name. |
 | `envault plan <env>... [--out .env] [--template f] [--no-template] [--only-template]` | Shows in JSON what `load` would do. Always JSON, never writes anything. Without `--out`, `target` is `{"mode":"shell"}`; with `--out`, `target` carries `path`, `exists` and `gitignored`. |
-| `envault load <env>... [--out .env] [--force \| --merge] [--template f] [--no-template] [--only-template] [--json]` | Without `--out`, exports the variables into the current terminal through the `shell-init` wrapper, without writing a file and without printing values; without the wrapper installed, exits with code 2. With `--out`, writes the destination file and refuses when it already exists, unless `--force` or `--merge` is passed; both flags only apply with `--out`. |
+| `envault load <env>... [--out .env] [--force \| --merge] [--clipboard] [--template f] [--no-template] [--only-template] [--json]` | Without `--out`, exports the variables into the current terminal through the `shell-init` wrapper, without writing a file and without printing values; without the wrapper installed, exits with code 2. With `--out`, writes the destination file and refuses when it already exists, unless `--force` or `--merge` is passed; both flags only apply with `--out`. With `--clipboard`, copies to the clipboard the same content `--out` would write, without touching any file; it can't be combined with `--out`, `--force` or `--merge`. |
 | `envault shell-init bash\|zsh\|fish` | Prints the shell function that makes `load` and the TUI export into the current terminal. Install with `eval "$(envault shell-init zsh)"` (or `bash`) in your shell rc, or `envault shell-init fish \| source` in `config.fish`. |
 | `envault exec -e a,b [--template f] [--no-template] [--only-template] [--] <command...>` | Runs a command with the combined variables injected into the environment, without creating a file. The `--` before the command is optional. |
 | `envault shell <env>... [--shell bash\|zsh\|fish]` | Prints one `export` line per variable, for use with `eval`. Without `--shell`, detects the dialect from the `$SHELL` variable; falls back to `bash` when it doesn't recognize it. |
@@ -274,9 +274,9 @@ After writing, `load` checks whether the destination is covered by the current r
 }
 ```
 
-Without `--out`, `target` becomes `{ "mode": "shell" }`, the destination `load` uses in the terminal.
+Without `--out`, `target` becomes `{ "mode": "shell" }`, the destination `load` uses in the terminal. With `load --clipboard`, `target` becomes `{ "mode": "clipboard" }`.
 
-`load --json` returns the same shape as `plan`, with an extra `"mode"` field: `"created"`, `"overwritten"` or `"merged"` with `--out`, or `"exported"` when it exports into the terminal through the shell wrapper.
+`load --json` returns the same shape as `plan`, with an extra `"mode"` field: `"created"`, `"overwritten"` or `"merged"` with `--out`, `"exported"` when it exports into the terminal through the shell wrapper, or `"copied"` with `--clipboard`.
 
 ### JSON output of selection
 

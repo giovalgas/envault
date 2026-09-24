@@ -3,6 +3,7 @@ package app
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -48,6 +49,20 @@ type stack struct {
 	dir       string
 	vaultDir  string
 	exports   string
+	clipboard *clipboardSpy
+}
+
+type clipboardSpy struct {
+	copied []string
+	err    error
+}
+
+func (c *clipboardSpy) write(text string) error {
+	if c.err != nil {
+		return c.err
+	}
+	c.copied = append(c.copied, text)
+	return nil
 }
 
 func composeEnvs() []vault.Env {
@@ -94,7 +109,8 @@ func newStack(t *testing.T, envs ...vault.Env) stack {
 			GetSelection:  composeusecase.NewGetSelection(source, selections),
 			SaveSelection: composeusecase.NewSaveSelection(selections, nil),
 		},
-		vaultDir: vaultDir,
+		vaultDir:  vaultDir,
+		clipboard: &clipboardSpy{},
 		store: VaultStore{
 			ListEnvs:  list,
 			ShowEnv:   vaultusecase.NewShowEnv(repo),
@@ -110,6 +126,7 @@ func newStack(t *testing.T, envs ...vault.Env) stack {
 			PlanLoad:       composeusecase.NewPlanLoad(source, files, ignore),
 			LoadEnvFile:    composeusecase.NewLoadEnvFile(source, files, ignore),
 			ShellExports:   composeusecase.NewLoadShellExports(composeusecase.NewRenderShell(source), files),
+			RenderEnvFile:  composeusecase.NewRenderEnvFile(source),
 			ExportDialect:  composeusecase.ShellZsh,
 			Dir:            dir,
 		},
@@ -120,7 +137,7 @@ func newStack(t *testing.T, envs ...vault.Env) stack {
 func (s stack) options() Options {
 	return Options{
 		Actions:   Actions(s.deps),
-		Clipboard: func(string) error { return nil },
+		Clipboard: s.clipboard.write,
 		Selection: s.selection,
 	}
 }
@@ -407,4 +424,48 @@ func TestComposeTerminalExportErrorKeepsCompose(t *testing.T) {
 		t.Fatalf("tela %v status %q", m.screen, m.status)
 	}
 	assertNoSecrets(t, "saída do erro de exportação", out, composeSecrets...)
+}
+
+func TestComposeCopiesEnvFileToClipboard(t *testing.T) {
+	s := newStack(t, composeEnvs()...).withWrapper(t)
+	writeFile(t, filepath.Join(s.dir, composeusecase.DefaultTemplateFile), "Y=\nX=\nSENTRY_DSN=\n")
+	sess := openComposeAB(t, s)
+	sess.assertSeen("y: copiar .env para o clipboard")
+	sess.typeText("y")
+	sess.waitFor("copiado para o clipboard")
+	m, out := sess.finish()
+
+	if m.screen != screenList || m.exported != "" {
+		t.Fatalf("tela %v exported %q", m.screen, m.exported)
+	}
+	if !m.statusWarn || !strings.Contains(m.status, ".env com 2 variáveis de a, b copiado para o clipboard") || !strings.Contains(m.status, "sem valor no template: SENTRY_DSN") {
+		t.Fatalf("status = %q", m.status)
+	}
+	want := "Y=" + secretYFromB + "\nX=" + secretXFromB + "\n"
+	if len(s.clipboard.copied) != 1 || s.clipboard.copied[0] != want {
+		t.Fatalf("clipboard = %q", s.clipboard.copied)
+	}
+	if entries, err := os.ReadDir(s.dir); err != nil || len(entries) != 1 {
+		t.Fatalf("clipboard gravou arquivo: %v %v", entries, err)
+	}
+	if _, err := os.Stat(s.exports); !os.IsNotExist(err) {
+		t.Fatalf("exports não deveria existir: %v", err)
+	}
+	assertNoSecrets(t, "saída da cópia para o clipboard", out, composeSecrets...)
+}
+
+func TestComposeClipboardErrorKeepsCompose(t *testing.T) {
+	s := newStack(t, composeEnvs()...)
+	s.clipboard.err = errors.New("sem xclip")
+	sess := openComposeAB(t, s)
+	sess.typeText("y")
+	sess.waitFor("copiar para o clipboard: sem xclip")
+	m, out := sess.finish()
+	if m.screen != screenCompose || !m.statusErr {
+		t.Fatalf("tela %v status %q", m.screen, m.status)
+	}
+	if entries, err := os.ReadDir(s.dir); err != nil || len(entries) != 0 {
+		t.Fatalf("erro de clipboard gravou arquivo: %v %v", entries, err)
+	}
+	assertNoSecrets(t, "saída do erro de clipboard", out, composeSecrets...)
 }

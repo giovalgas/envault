@@ -25,6 +25,7 @@ type Deps struct {
 	PlanLoad       *composeusecase.PlanLoad
 	LoadEnvFile    *composeusecase.LoadEnvFile
 	ShellExports   *composeusecase.LoadShellExports
+	RenderEnvFile  *composeusecase.RenderEnvFile
 	ExportFile     string
 	ExportDialect  string
 	Dir            string
@@ -111,6 +112,7 @@ func (d Deps) compose(_ context.Context, req ActionRequest) tea.Cmd {
 		Plan:       d.PlanLoad,
 		Load:       d.LoadEnvFile,
 		Export:     d.ShellExports,
+		Render:     d.RenderEnvFile,
 		ExportFile: d.ExportFile,
 		Dialect:    d.ExportDialect,
 		Dir:        d.Dir,
