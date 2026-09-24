@@ -164,10 +164,10 @@ func (m Model) onEditorDone(msg editorDoneMsg) (tea.Model, tea.Cmd) {
 	draft, name := msg.draft, msg.draft.Name()
 	switch {
 	case errors.Is(msg.err, vaultusecase.ErrEditReopen):
-		m.logger.Printf("conteúdo inválido em %s, reabrindo o editor", name)
-		return m, m.execEditor(draft)
+		m.logger.Printf("conteúdo inválido em %s, aguardando para reabrir o editor", name)
+		return m.openEditRetry(draft, msg.err), nil
 	case errors.Is(msg.err, vaultusecase.ErrEditCanceled):
-		return m.setStatus(editCanceledText(draft), nil), nil
+		return m.setStatus(editCanceledText(draft, msg.err), nil), nil
 	case msg.err != nil:
 		return m.setStatus("", fmt.Errorf("editor de %q: %w", name, msg.err)), nil
 	case !msg.result.Changed:
@@ -176,11 +176,60 @@ func (m Model) onEditorDone(msg editorDoneMsg) (tea.Model, tea.Cmd) {
 	return m.openDiff(draft, msg.result), nil
 }
 
-func editCanceledText(draft *vaultusecase.EditDraft) string {
+func editCanceledText(draft *vaultusecase.EditDraft, err error) string {
+	text := fmt.Sprintf("edição de %s cancelada", draft.Name())
 	if draft.IsNew() {
-		return fmt.Sprintf("criação de %s cancelada", draft.Name())
+		text = fmt.Sprintf("criação de %s cancelada", draft.Name())
 	}
-	return fmt.Sprintf("edição de %s cancelada", draft.Name())
+	if cause, ok := editFailureCause(err); ok {
+		return text + ": " + cause
+	}
+	return text
+}
+
+func editFailureCause(err error) (string, bool) {
+	var joined interface{ Unwrap() []error }
+	if !errors.As(err, &joined) {
+		return "", false
+	}
+	for _, part := range joined.Unwrap() {
+		if !errors.Is(part, vaultusecase.ErrEditReopen) && !errors.Is(part, vaultusecase.ErrEditCanceled) {
+			return part.Error(), true
+		}
+	}
+	return "", false
+}
+
+func (m Model) openEditRetry(draft *vaultusecase.EditDraft, err error) Model {
+	cause, ok := editFailureCause(err)
+	if !ok {
+		cause = err.Error()
+	}
+	title := "Editar " + draft.Name()
+	if draft.IsNew() {
+		title = "Nova env " + draft.Name()
+	}
+	modal := confirm.New(title, "DEU ERRO: "+cause, "", "Aperte enter para tentar novamente.").
+		WithChoices(
+			confirm.Choice{Label: "tentar novamente", Run: func(string) (tea.Cmd, error) {
+				return m.execEditor(draft), nil
+			}},
+			confirm.Choice{Label: "cancelar", Run: func(string) (tea.Cmd, error) {
+				return cancelEditCmd(draft), nil
+			}},
+		).
+		WithDismiss(func() tea.Cmd { return cancelEditCmd(draft) })
+	m.modal = &modal
+	return m
+}
+
+func cancelEditCmd(draft *vaultusecase.EditDraft) tea.Cmd {
+	return func() tea.Msg {
+		if err := draft.Close(); err != nil {
+			return ResultMsg{Err: fmt.Errorf("remover arquivo temporário de %q: %w", draft.Name(), err)}
+		}
+		return statusMsg{text: editCanceledText(draft, nil)}
+	}
 }
 
 func (m Model) openDiff(draft *vaultusecase.EditDraft, result vaultusecase.EditResultView) Model {

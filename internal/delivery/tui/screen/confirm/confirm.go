@@ -35,6 +35,7 @@ type Model struct {
 	choices  []Choice
 	focus    int
 	err      string
+	dismiss  func() tea.Cmd
 }
 
 func New(title string, body ...string) Model {
@@ -59,6 +60,18 @@ func (c Model) WithChoices(choices ...Choice) Model {
 	return c
 }
 
+func (c Model) WithDismiss(dismiss func() tea.Cmd) Model {
+	c.dismiss = dismiss
+	return c
+}
+
+func (c Model) dismissCmd() tea.Cmd {
+	if c.dismiss == nil {
+		return nil
+	}
+	return c.dismiss()
+}
+
 func (c Model) value() string {
 	if !c.hasInput {
 		return ""
@@ -69,9 +82,9 @@ func (c Model) value() string {
 func (c Model) Update(msg tea.KeyMsg) (updated Model, cmd tea.Cmd, closed bool) {
 	switch {
 	case key.Matches(msg, c.keys.Back), msg.Type == tea.KeyCtrlC:
-		return c, nil, true
+		return c, c.dismissCmd(), true
 	case !c.hasInput && key.Matches(msg, c.keys.Quit):
-		return c, nil, true
+		return c, c.dismissCmd(), true
 	case key.Matches(msg, c.keys.Confirm):
 		return c.selectFocused()
 	case c.movesChoice(msg, c.keys.NextChoice):

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -63,6 +64,11 @@ func TestTUIEditReopensOnParseError(t *testing.T) {
 	s := newStack(t, composeEnvs()...)
 	sess := s.start(t)
 	sess.typeText("e")
+	sess.waitForAll("Editar a", `DEU ERRO: linha 2: chave inválida "1BAD"`, "Aperte enter para tentar novamente")
+	if script.Calls() != 1 {
+		t.Fatalf("editor reaberto antes do enter: %d chamadas", script.Calls())
+	}
+	sess.press(tea.KeyEnter)
 	sess.waitFor("Gravar alterações em a")
 	sess.press(tea.KeyEnter)
 	sess.waitFor("a atualizada")
@@ -161,7 +167,9 @@ func TestTUINewEnvReopenedUnchangedDoesNotLoop(t *testing.T) {
 	sess.waitFor("Nova env")
 	sess.typeText("nova")
 	sess.press(tea.KeyEnter)
-	sess.waitFor("criação de nova cancelada")
+	sess.waitForAll("Nova env nova", `DEU ERRO: linha 2: chave inválida "1BAD"`)
+	sess.press(tea.KeyEnter)
+	sess.waitFor(`criação de nova cancelada: linha 2: chave inválida "1BAD"`)
 	m, out := sess.finish()
 
 	if script.Calls() != 2 {
@@ -181,7 +189,9 @@ func TestTUIEditReopenedUnchangedDoesNotLoop(t *testing.T) {
 	s := newStack(t, composeEnvs()...)
 	sess := s.start(t)
 	sess.typeText("e")
-	sess.waitFor("edição de a cancelada")
+	sess.waitFor("DEU ERRO")
+	sess.press(tea.KeyEnter)
+	sess.waitFor(`edição de a cancelada: linha 2: chave inválida "1BAD"`)
 	_, out := sess.finish()
 
 	if script.Calls() != 2 {
@@ -191,6 +201,34 @@ func TestTUIEditReopenedUnchangedDoesNotLoop(t *testing.T) {
 		t.Fatal("edição com erro foi gravada")
 	}
 	assertNoSecrets(t, "saída da edição", out, editSecrets...)
+}
+
+func TestTUIEditRetryDismissedCancelsWithoutReopening(t *testing.T) {
+	script := editortest.Install(t, invalidThenUnchanged("K="+secretEdited+"\n1BAD=x\n", 5)...)
+	s := newStack(t, composeEnvs()...)
+	sess := s.start(t)
+	sess.typeText("n")
+	sess.waitFor("Nova env")
+	sess.typeText("nova")
+	sess.press(tea.KeyEnter)
+	sess.waitFor("DEU ERRO")
+	sess.press(tea.KeyEsc)
+	sess.waitFor("criação de nova cancelada")
+	m, out := sess.finish()
+
+	if script.Calls() != 1 {
+		t.Fatalf("editor aberto %d vezes, esperado 1", script.Calls())
+	}
+	if _, err := os.Stat(filepath.Dir(script.Path(1))); !os.IsNotExist(err) {
+		t.Fatalf("temporário não removido: %v", err)
+	}
+	if _, err := s.store.Get(context.Background(), "nova"); err == nil {
+		t.Fatal("env com erro foi criada")
+	}
+	if m.modal != nil {
+		t.Fatalf("modal = %v", m.modal)
+	}
+	assertNoSecrets(t, "saída da criação", out, editSecrets...)
 }
 
 func TestTUINewEnvWithVimOpensOnceAndCreates(t *testing.T) {
