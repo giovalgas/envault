@@ -1,0 +1,6 @@
+dist/
+bin/
+/envault
+/envault.exe
+*.test
+coverage.out

@@ -1,0 +1,55 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - revive
+    - gosec
+    - gocritic
+    - misspell
+    - unparam
+  settings:
+    misspell:
+      ignore-rules:
+        - comando
+        - comandos
+        - argumentos
+        - processos
+    revive:
+      enable-default-rules: true
+      rules:
+        - name: exported
+          disabled: true
+        - name: package-comments
+          disabled: true
+  exclusions:
+    rules:
+      - path: internal/compose/infra/process/process\.go
+        linters: [gosec]
+        text: G204
+      - path: internal/vault/infra/editor/session\.go
+        linters: [gosec]
+        text: G204
+      - path: internal/compose/infra/gitignore/gitignore\.go
+        linters: [gosec]
+        text: G204
+      - path: internal/compose/infra/gitignore/gitignore_test\.go
+        linters: [gosec]
+        text: G204
+      - path: internal/architecture_test\.go
+        linters: [gosec]
+        text: G204
+
+formatters:
+  enable:
+    - gofumpt
+  settings:
+    gofumpt:
+      module-path: github.com/giovalgas/envault
