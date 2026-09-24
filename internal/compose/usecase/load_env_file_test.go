@@ -49,7 +49,7 @@ func TestLoadEnvFileModes(t *testing.T) {
 			if !slices.Equal(sent, vars("A", "1", "B", "2")) {
 				t.Fatalf("sent = %+v", sent)
 			}
-			want := domain.Target{Path: ".env", Exists: tc.exists, Gitignored: domain.GitignoreNotIgnored}
+			want := TargetView{Path: ".env", Exists: tc.exists, Gitignored: domain.GitignoreNotIgnored}
 			if result.Target != want || len(ignore.paths) != 1 {
 				t.Fatalf("target = %+v paths %v", result.Target, ignore.paths)
 			}

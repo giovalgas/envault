@@ -32,3 +32,15 @@ type SelectionStore interface {
 	Load(ctx context.Context) (domain.Selection, error)
 	Save(ctx context.Context, selection domain.Selection) error
 }
+
+type TemplateReader interface {
+	ReadTemplate(path string) (data []byte, found bool, err error)
+}
+
+type Environment interface {
+	Environ() []string
+}
+
+type ProcessRunner interface {
+	Run(spec ProcessSpec) (ProcessStatus, error)
+}

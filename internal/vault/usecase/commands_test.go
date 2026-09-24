@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -15,7 +16,7 @@ var later = domain.Clock(func() time.Time { return baseTime.Add(time.Hour) })
 func TestSetValues(t *testing.T) {
 	repo := newRepo(sampleEnv())
 	uc := NewSetValues(repo, later)
-	env, err := uc.Execute(context.Background(), "a", []domain.Var{{Key: "POOL", Value: "20"}, {Key: "NEW", Value: "x"}})
+	env, err := uc.Execute(context.Background(), "a", []VarView{{Key: "POOL", Value: "20"}, {Key: "NEW", Value: "x"}})
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
@@ -25,7 +26,7 @@ func TestSetValues(t *testing.T) {
 	if value, _ := repo.env(t, "a").Lookup("POOL"); value != "20" {
 		t.Fatalf("POOL = %q", value)
 	}
-	if _, err := uc.Execute(context.Background(), "a", []domain.Var{{Key: "OK", Value: "1"}, {Key: "1BAD", Value: "x"}}); !errors.Is(err, domain.ErrInvalidKey) {
+	if _, err := uc.Execute(context.Background(), "a", []VarView{{Key: "OK", Value: "1"}, {Key: "1BAD", Value: "x"}}); !errors.Is(err, domain.ErrInvalidKey) {
 		t.Fatalf("invalid err = %v", err)
 	}
 	if _, ok := repo.env(t, "a").Lookup("OK"); ok {
@@ -78,7 +79,7 @@ func TestCopyEnv(t *testing.T) {
 	repo := newRepo(sampleEnv())
 	uc := NewCopyEnv(repo, later)
 	env, err := uc.Execute(context.Background(), "a", "b")
-	if err != nil || env.Name != "b" || !env.CreatedAt.Equal(later.Now()) || !env.SameContent(sampleEnv()) {
+	if err != nil || env.Name != "b" || !env.CreatedAt.Equal(later.Now()) || !envFromView(env).SameContent(sampleEnv()) {
 		t.Fatalf("env = %+v, %v", env, err)
 	}
 	if !repo.snapshot.Has("a") || !repo.snapshot.Has("b") {
@@ -106,8 +107,8 @@ func TestDeleteEnv(t *testing.T) {
 func TestCreateEnvWithEditor(t *testing.T) {
 	repo := newRepo()
 	editor := editTo(domain.Env{Description: "do editor", Tags: []string{"db"}, Vars: []domain.Var{{Key: "A", Value: "1"}}})
-	uc := NewCreateEnv(repo, editor, later)
-	result, err := uc.Execute(context.Background(), CreateEnvInput{Env: domain.Env{Name: "nova", Tags: []string{"db"}}})
+	uc := NewCreateEnv(repo, editor, nil, later)
+	result, err := uc.Execute(context.Background(), CreateEnvInput{Name: "nova", Tags: []string{"db"}})
 	if err != nil || !result.Created {
 		t.Fatalf("result = %+v, %v", result, err)
 	}
@@ -122,29 +123,29 @@ func TestCreateEnvWithEditor(t *testing.T) {
 
 func TestCreateEnvEditorUnchangedOrFails(t *testing.T) {
 	repo := newRepo()
-	unchanged := NewCreateEnv(repo, editTo(domain.Env{}), later)
-	result, err := unchanged.Execute(context.Background(), CreateEnvInput{Env: domain.Env{Name: "nova"}})
+	unchanged := NewCreateEnv(repo, editTo(domain.Env{}), nil, later)
+	result, err := unchanged.Execute(context.Background(), CreateEnvInput{Name: "nova"})
 	if err != nil || result.Created || repo.updates != 0 {
 		t.Fatalf("result = %+v, %v, updates %d", result, err, repo.updates)
 	}
 	failing := &fakeEditor{result: func(domain.Env) (domain.EditResult, error) {
 		return domain.EditResult{}, domain.ErrEditCanceled
 	}}
-	if _, err := NewCreateEnv(repo, failing, later).Execute(context.Background(), CreateEnvInput{Env: domain.Env{Name: "nova"}}); !errors.Is(err, domain.ErrEditCanceled) {
+	if _, err := NewCreateEnv(repo, failing, nil, later).Execute(context.Background(), CreateEnvInput{Name: "nova"}); !errors.Is(err, domain.ErrEditCanceled) {
 		t.Fatalf("err = %v", err)
 	}
 }
 
 func TestCreateEnvChecksBeforeEditing(t *testing.T) {
 	editor := editTo(domain.Env{Vars: []domain.Var{{Key: "A", Value: "1"}}})
-	uc := NewCreateEnv(newRepo(sampleEnv()), editor, later)
-	if _, err := uc.Execute(context.Background(), CreateEnvInput{Env: domain.Env{Name: "Bad Name"}}); !errors.Is(err, domain.ErrInvalidName) {
+	uc := NewCreateEnv(newRepo(sampleEnv()), editor, nil, later)
+	if _, err := uc.Execute(context.Background(), CreateEnvInput{Name: "Bad Name"}); !errors.Is(err, domain.ErrInvalidName) {
 		t.Fatalf("invalid err = %v", err)
 	}
-	if _, err := uc.Execute(context.Background(), CreateEnvInput{Env: domain.Env{Name: "a"}}); !errors.Is(err, domain.ErrEnvExists) {
+	if _, err := uc.Execute(context.Background(), CreateEnvInput{Name: "a"}); !errors.Is(err, domain.ErrEnvExists) {
 		t.Fatalf("exists err = %v", err)
 	}
-	if _, err := NewCreateEnv(&memRepo{}, editor, later).Execute(context.Background(), CreateEnvInput{Env: domain.Env{Name: "b"}}); !errors.Is(err, domain.ErrNotInitialized) {
+	if _, err := NewCreateEnv(&memRepo{}, editor, nil, later).Execute(context.Background(), CreateEnvInput{Name: "b"}); !errors.Is(err, domain.ErrNotInitialized) {
 		t.Fatalf("uninitialized err = %v", err)
 	}
 	if editor.calls != 0 {
@@ -154,16 +155,16 @@ func TestCreateEnvChecksBeforeEditing(t *testing.T) {
 
 func TestCreateEnvFromSource(t *testing.T) {
 	repo := newRepo()
-	uc := NewCreateEnv(repo, &fakeEditor{}, later)
-	from := source("vars.env", "# @description: do arquivo\n# @tags: file\nA=1\n")
-	in := CreateEnvInput{Env: domain.Env{Name: "a", Description: "da flag", Tags: []string{"flag"}}, From: &from}
+	from := files("vars.env", "# @description: do arquivo\n# @tags: file\nA=1\n")
+	uc := NewCreateEnv(repo, &fakeEditor{}, from, later)
+	in := CreateEnvInput{Name: "a", Description: "da flag", Tags: []string{"flag"}, FromFile: "vars.env"}
 	if _, err := uc.Execute(context.Background(), in); err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
 	if env := repo.env(t, "a"); env.Description != "do arquivo" || !env.HasTag("file") {
 		t.Fatalf("without overrides = %+v", env)
 	}
-	in.Env.Name = "b"
+	in.Name = "b"
 	in.OverrideDescription = true
 	in.OverrideTags = true
 	if _, err := uc.Execute(context.Background(), in); err != nil {
@@ -172,28 +173,30 @@ func TestCreateEnvFromSource(t *testing.T) {
 	if env := repo.env(t, "b"); env.Description != "da flag" || !env.HasTag("flag") || env.HasTag("file") {
 		t.Fatalf("with overrides = %+v", env)
 	}
-	broken := source("ruim.env", "A=1\nsem igual\n")
-	in.Env.Name = "c"
-	in.From = &broken
-	if _, err := uc.Execute(context.Background(), in); err == nil || !strings.HasPrefix(err.Error(), "ruim.env: linha 2") {
+	broken := NewCreateEnv(repo, &fakeEditor{}, files("ruim.env", "A=1\nsem igual\n"), later)
+	in.Name = "c"
+	in.FromFile = "ruim.env"
+	if _, err := broken.Execute(context.Background(), in); err == nil || !strings.HasPrefix(err.Error(), "ruim.env: linha 2") {
 		t.Fatalf("parse err = %v", err)
 	}
-	boom := errors.New("ler vars.env: boom")
-	in.From = &EnvSource{Name: "vars.env", Read: func() ([]byte, error) { return nil, boom }}
-	if _, err := uc.Execute(context.Background(), in); !errors.Is(err, boom) {
+	boom := errors.New("boom")
+	failing := NewCreateEnv(repo, &fakeEditor{}, &fakeFiles{err: boom}, later)
+	in.FromFile = "vars.env"
+	if _, err := failing.Execute(context.Background(), in); !errors.Is(err, boom) || err.Error() != "ler vars.env: boom" {
 		t.Fatalf("read err = %v", err)
 	}
 }
 
 func TestImportEnv(t *testing.T) {
 	repo := newRepo(domain.Env{Name: "a", Vars: []domain.Var{{Key: "OLD", Value: "1"}}})
-	uc := NewImportEnv(repo, later)
-	created, err := uc.Execute(context.Background(), ImportEnvInput{Name: "b", From: source("b.env", "# @description: arquivo\nX=1\n")})
+	from := &fakeFiles{content: map[string]string{"b.env": "# @description: arquivo\nX=1\n", "a.env": "NEW=2\n"}}
+	uc := NewImportEnv(repo, from, later)
+	created, err := uc.Execute(context.Background(), ImportEnvInput{Name: "b", Path: "b.env"})
 	if err != nil || created.Replaced || created.Env.Description != "arquivo" {
 		t.Fatalf("created = %+v, %v", created, err)
 	}
 	description := "da flag"
-	replaced, err := uc.Execute(context.Background(), ImportEnvInput{Name: "a", From: source("a.env", "NEW=2\n"), Description: &description})
+	replaced, err := uc.Execute(context.Background(), ImportEnvInput{Name: "a", Path: "a.env", Description: &description})
 	if err != nil || !replaced.Replaced {
 		t.Fatalf("replaced = %+v, %v", replaced, err)
 	}
@@ -203,24 +206,39 @@ func TestImportEnv(t *testing.T) {
 	}
 }
 
-func TestImportEnvOrderOfErrors(t *testing.T) {
-	read := 0
-	counting := EnvSource{Name: "x.env", Read: func() ([]byte, error) { read++; return []byte("A=1\n"), nil }}
-	if _, err := NewImportEnv(newRepo(), later).Execute(context.Background(), ImportEnvInput{Name: "Bad Name", From: counting}); !errors.Is(err, domain.ErrInvalidName) || read != 0 {
-		t.Fatalf("invalid name err = %v, reads %d", err, read)
+func TestImportEnvResolvesPathInDir(t *testing.T) {
+	dir := t.TempDir()
+	inDir := filepath.Join(dir, "b.env")
+	from := files(inDir, "X=1\n")
+	if _, err := NewImportEnv(newRepo(), from, later).Execute(context.Background(), ImportEnvInput{Name: "b", Path: "b.env", Dir: dir}); err != nil {
+		t.Fatalf("Execute: %v", err)
 	}
-	if _, err := NewImportEnv(&memRepo{}, later).Execute(context.Background(), ImportEnvInput{Name: "a", From: source("x.env", "lixo\n")}); err == nil || !strings.HasPrefix(err.Error(), "x.env: linha 1") {
+	absolute := filepath.Join(t.TempDir(), "c.env")
+	if _, err := NewImportEnv(newRepo(), from, later).Execute(context.Background(), ImportEnvInput{Name: "c", Path: absolute, Dir: dir}); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if strings.Join(from.paths, ",") != inDir+","+absolute {
+		t.Fatalf("paths = %v", from.paths)
+	}
+}
+
+func TestImportEnvOrderOfErrors(t *testing.T) {
+	counting := files("x.env", "A=1\n")
+	if _, err := NewImportEnv(newRepo(), counting, later).Execute(context.Background(), ImportEnvInput{Name: "Bad Name", Path: "x.env"}); !errors.Is(err, domain.ErrInvalidName) || counting.reads != 0 {
+		t.Fatalf("invalid name err = %v, reads %d", err, counting.reads)
+	}
+	if _, err := NewImportEnv(&memRepo{}, files("x.env", "lixo\n"), later).Execute(context.Background(), ImportEnvInput{Name: "a", Path: "x.env"}); err == nil || !strings.HasPrefix(err.Error(), "x.env: linha 1") {
 		t.Fatalf("parse must precede the vault: %v", err)
 	}
-	if _, err := NewImportEnv(&memRepo{}, later).Execute(context.Background(), ImportEnvInput{Name: "a", From: counting}); !errors.Is(err, domain.ErrNotInitialized) {
+	if _, err := NewImportEnv(&memRepo{}, counting, later).Execute(context.Background(), ImportEnvInput{Name: "a", Path: "x.env"}); !errors.Is(err, domain.ErrNotInitialized) {
 		t.Fatalf("uninitialized err = %v", err)
 	}
 	multiline := "a\nb"
-	if _, err := NewImportEnv(newRepo(), later).Execute(context.Background(), ImportEnvInput{Name: "a", From: counting, Description: &multiline}); !errors.Is(err, domain.ErrInvalidDescription) {
+	if _, err := NewImportEnv(newRepo(), counting, later).Execute(context.Background(), ImportEnvInput{Name: "a", Path: "x.env", Description: &multiline}); !errors.Is(err, domain.ErrInvalidDescription) {
 		t.Fatalf("description err = %v", err)
 	}
 	boom := errors.New("boom")
-	if _, err := NewImportEnv(newRepo(), later).Execute(context.Background(), ImportEnvInput{Name: "a", From: EnvSource{Read: func() ([]byte, error) { return nil, boom }}}); !errors.Is(err, boom) {
+	if _, err := NewImportEnv(newRepo(), &fakeFiles{err: boom}, later).Execute(context.Background(), ImportEnvInput{Name: "a", Path: "x.env"}); !errors.Is(err, boom) {
 		t.Fatalf("read err = %v", err)
 	}
 }

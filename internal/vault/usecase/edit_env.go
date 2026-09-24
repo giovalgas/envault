@@ -16,20 +16,20 @@ func NewEditEnv(repo domain.EnvRepository, editor domain.Editor, clock domain.Cl
 	return &EditEnv{repo: repo, editor: editor, clock: clock}
 }
 
-func (uc *EditEnv) Execute(ctx context.Context, name string) (domain.EditResult, error) {
+func (uc *EditEnv) Execute(ctx context.Context, name string) (EditResultView, error) {
 	initial, err := loadEnv(ctx, uc.repo, name)
 	if err != nil {
-		return domain.EditResult{}, err
+		return EditResultView{}, err
 	}
 	result, err := uc.editor.Edit(ctx, initial, false)
 	if err != nil {
-		return domain.EditResult{}, err
+		return EditResultView{}, err
 	}
 	if !result.Changed {
-		return result, nil
+		return editResultView(result), nil
 	}
 	if _, err := applyEdit(ctx, uc.repo, uc.clock, initial, result.Env); err != nil {
-		return domain.EditResult{}, err
+		return EditResultView{}, err
 	}
-	return result, nil
+	return editResultView(result), nil
 }

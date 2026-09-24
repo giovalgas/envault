@@ -44,3 +44,18 @@ func TestShellRenderErrors(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestDetectShell(t *testing.T) {
+	cases := map[string]string{
+		"/bin/zsh":            ShellZsh,
+		"/usr/local/bin/fish": ShellFish,
+		"/opt/zsh.exe":        ShellZsh,
+		"/bin/tcsh":           ShellBash,
+		"":                    ShellBash,
+	}
+	for shellPath, want := range cases {
+		if got := DetectShell(shellPath); got != want {
+			t.Errorf("DetectShell(%q) = %q, want %q", shellPath, got, want)
+		}
+	}
+}

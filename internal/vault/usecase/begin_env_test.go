@@ -186,7 +186,7 @@ func TestBeginEditEnvReportsCloseFailure(t *testing.T) {
 func TestBeginCreateEnv(t *testing.T) {
 	repo := newRepo(sampleEnv())
 	editor := sessionTo(reviewTo(domain.Env{Description: "do editor", Vars: []domain.Var{{Key: "A", Value: "1"}}}))
-	draft, err := NewBeginCreateEnv(repo, editor, later).Execute(context.Background(), domain.Env{Name: "nova"})
+	draft, err := NewBeginCreateEnv(repo, editor, later).Execute(context.Background(), "nova")
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
@@ -212,20 +212,20 @@ func TestBeginCreateEnv(t *testing.T) {
 func TestBeginCreateEnvRejects(t *testing.T) {
 	repo := newRepo(sampleEnv())
 	editor := sessionTo()
-	if _, err := NewBeginCreateEnv(repo, editor, later).Execute(context.Background(), domain.Env{Name: "a"}); !errors.Is(err, domain.ErrEnvExists) {
+	if _, err := NewBeginCreateEnv(repo, editor, later).Execute(context.Background(), "a"); !errors.Is(err, domain.ErrEnvExists) {
 		t.Fatalf("exists err = %v", err)
 	}
-	if _, err := NewBeginCreateEnv(repo, editor, later).Execute(context.Background(), domain.Env{Name: "../x"}); !errors.Is(err, domain.ErrInvalidName) {
+	if _, err := NewBeginCreateEnv(repo, editor, later).Execute(context.Background(), "../x"); !errors.Is(err, domain.ErrInvalidName) {
 		t.Fatalf("invalid err = %v", err)
 	}
-	if _, err := NewBeginCreateEnv(&memRepo{}, editor, later).Execute(context.Background(), domain.Env{Name: "b"}); !errors.Is(err, domain.ErrNotInitialized) {
+	if _, err := NewBeginCreateEnv(&memRepo{}, editor, later).Execute(context.Background(), "b"); !errors.Is(err, domain.ErrNotInitialized) {
 		t.Fatalf("not initialized err = %v", err)
 	}
 	if editor.opened != 0 {
 		t.Fatalf("editor opened %d times", editor.opened)
 	}
 	boom := errors.New("boom")
-	if _, err := NewBeginCreateEnv(repo, &fakeSessionEditor{openErr: boom}, later).Execute(context.Background(), domain.Env{Name: "b"}); !errors.Is(err, boom) {
+	if _, err := NewBeginCreateEnv(repo, &fakeSessionEditor{openErr: boom}, later).Execute(context.Background(), "b"); !errors.Is(err, boom) {
 		t.Fatalf("open err = %v", err)
 	}
 }
@@ -233,7 +233,7 @@ func TestBeginCreateEnvRejects(t *testing.T) {
 func TestBeginCreateEnvDetectsConcurrentCreate(t *testing.T) {
 	repo := newRepo()
 	editor := sessionTo(reviewTo(domain.Env{Vars: []domain.Var{{Key: "A", Value: "1"}}}))
-	draft, err := NewBeginCreateEnv(repo, editor, later).Execute(context.Background(), domain.Env{Name: "nova"})
+	draft, err := NewBeginCreateEnv(repo, editor, later).Execute(context.Background(), "nova")
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}

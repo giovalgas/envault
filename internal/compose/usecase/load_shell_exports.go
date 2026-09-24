@@ -2,20 +2,18 @@ package usecase
 
 import (
 	"context"
-
-	"github.com/giovalgas/envault/internal/compose/domain"
 )
 
 type LoadShellExportsInput struct {
-	Envs       []string
-	Template   *domain.Template
-	Options    domain.Options
-	Dialect    string
-	ExportFile string
+	Envs         []string
+	Template     TemplateView
+	OnlyTemplate bool
+	Dialect      string
+	ExportFile   string
 }
 
 type LoadShellExportsResult struct {
-	Plan    domain.Plan
+	Plan    PlanView
 	Written int
 }
 
@@ -33,10 +31,10 @@ func (uc *LoadShellExports) Execute(ctx context.Context, in LoadShellExportsInpu
 		return LoadShellExportsResult{}, ErrNoExportFile
 	}
 	rendered, err := uc.render.Execute(ctx, RenderShellInput{
-		Envs:     in.Envs,
-		Dialect:  in.Dialect,
-		Template: in.Template,
-		Options:  in.Options,
+		Envs:         in.Envs,
+		Dialect:      in.Dialect,
+		Template:     in.Template,
+		OnlyTemplate: in.OnlyTemplate,
 	})
 	if err != nil {
 		return LoadShellExportsResult{}, err

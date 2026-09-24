@@ -16,7 +16,8 @@ func NewBeginCreateEnv(repo domain.EnvRepository, editor domain.SessionEditor, c
 	return &BeginCreateEnv{repo: repo, editor: editor, clock: clock}
 }
 
-func (uc *BeginCreateEnv) Execute(ctx context.Context, env domain.Env) (*EditDraft, error) {
+func (uc *BeginCreateEnv) Execute(ctx context.Context, name string) (*EditDraft, error) {
+	env := domain.Env{Name: name}
 	if err := env.Validate(); err != nil {
 		return nil, err
 	}

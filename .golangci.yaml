@@ -31,7 +31,7 @@ linters:
           disabled: true
   exclusions:
     rules:
-      - path: internal/delivery/cli/exec\.go
+      - path: internal/compose/infra/process/process\.go
         linters: [gosec]
         text: G204
       - path: internal/vault/infra/editor/session\.go
@@ -44,9 +44,6 @@ linters:
         linters: [gosec]
         text: G204
       - path: internal/architecture_test\.go
-        linters: [gosec]
-        text: G204
-      - path: internal/delivery/tui/compose_test\.go
         linters: [gosec]
         text: G204
 

@@ -20,7 +20,7 @@ func NewListEnvs(repo domain.EnvRepository) *ListEnvs {
 	return &ListEnvs{repo: repo}
 }
 
-func (uc *ListEnvs) Execute(ctx context.Context, query ListEnvsQuery) ([]domain.Env, error) {
+func (uc *ListEnvs) Execute(ctx context.Context, query ListEnvsQuery) ([]EnvView, error) {
 	snapshot, err := uc.repo.Load(ctx)
 	if err != nil {
 		return nil, err
@@ -32,7 +32,7 @@ func (uc *ListEnvs) Execute(ctx context.Context, query ListEnvsQuery) ([]domain.
 			out = append(out, env)
 		}
 	}
-	return out, nil
+	return envViews(out), nil
 }
 
 func (q ListEnvsQuery) matches(env domain.Env) bool {

@@ -7,35 +7,39 @@ import (
 )
 
 type CreateEnvInput struct {
-	Env                 domain.Env
-	From                *EnvSource
+	Name                string
+	Description         string
+	Tags                []string
+	FromFile            string
 	OverrideDescription bool
 	OverrideTags        bool
 }
 
 type CreateEnvResult struct {
-	Env     domain.Env
+	Env     EnvView
 	Created bool
 }
 
 type CreateEnv struct {
 	repo   domain.EnvRepository
 	editor domain.Editor
+	files  EnvFileReader
 	clock  domain.Clock
 }
 
-func NewCreateEnv(repo domain.EnvRepository, editor domain.Editor, clock domain.Clock) *CreateEnv {
-	return &CreateEnv{repo: repo, editor: editor, clock: clock}
+func NewCreateEnv(repo domain.EnvRepository, editor domain.Editor, files EnvFileReader, clock domain.Clock) *CreateEnv {
+	return &CreateEnv{repo: repo, editor: editor, files: files, clock: clock}
 }
 
 func (uc *CreateEnv) Execute(ctx context.Context, in CreateEnvInput) (CreateEnvResult, error) {
-	if err := in.Env.Validate(); err != nil {
+	initial := domain.Env{Name: in.Name, Description: in.Description, Tags: in.Tags}
+	if err := initial.Validate(); err != nil {
 		return CreateEnvResult{}, err
 	}
-	if err := ensureAbsent(ctx, uc.repo, in.Env.Name); err != nil {
+	if err := ensureAbsent(ctx, uc.repo, initial.Name); err != nil {
 		return CreateEnvResult{}, err
 	}
-	env, ok, err := uc.build(ctx, in)
+	env, ok, err := uc.build(ctx, in, initial)
 	if err != nil || !ok {
 		return CreateEnvResult{}, err
 	}
@@ -43,27 +47,27 @@ func (uc *CreateEnv) Execute(ctx context.Context, in CreateEnvInput) (CreateEnvR
 	if err != nil {
 		return CreateEnvResult{}, err
 	}
-	return CreateEnvResult{Env: created, Created: true}, nil
+	return CreateEnvResult{Env: envView(created), Created: true}, nil
 }
 
-func (uc *CreateEnv) build(ctx context.Context, in CreateEnvInput) (domain.Env, bool, error) {
-	if in.From == nil {
-		result, err := uc.editor.Edit(ctx, in.Env, true)
+func (uc *CreateEnv) build(ctx context.Context, in CreateEnvInput, initial domain.Env) (domain.Env, bool, error) {
+	if in.FromFile == "" {
+		result, err := uc.editor.Edit(ctx, initial, true)
 		if err != nil || !result.Changed {
 			return domain.Env{}, false, err
 		}
 		return result.Env, true, nil
 	}
-	env, err := in.From.load()
+	env, err := readEnvFile(uc.files, "", in.FromFile)
 	if err != nil {
 		return domain.Env{}, false, err
 	}
-	env.Name = in.Env.Name
+	env.Name = initial.Name
 	if in.OverrideDescription {
-		env.Description = in.Env.Description
+		env.Description = initial.Description
 	}
 	if in.OverrideTags {
-		env.Tags = in.Env.Tags
+		env.Tags = initial.Tags
 	}
 	return env, true, nil
 }

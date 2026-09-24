@@ -8,29 +8,31 @@ import (
 
 type ImportEnvInput struct {
 	Name        string
-	From        EnvSource
+	Path        string
+	Dir         string
 	Description *string
 }
 
 type ImportEnvResult struct {
-	Env      domain.Env
+	Env      EnvView
 	Replaced bool
 }
 
 type ImportEnv struct {
 	repo  domain.EnvRepository
+	files EnvFileReader
 	clock domain.Clock
 }
 
-func NewImportEnv(repo domain.EnvRepository, clock domain.Clock) *ImportEnv {
-	return &ImportEnv{repo: repo, clock: clock}
+func NewImportEnv(repo domain.EnvRepository, files EnvFileReader, clock domain.Clock) *ImportEnv {
+	return &ImportEnv{repo: repo, files: files, clock: clock}
 }
 
 func (uc *ImportEnv) Execute(ctx context.Context, in ImportEnvInput) (ImportEnvResult, error) {
 	if err := domain.ValidateName(in.Name); err != nil {
 		return ImportEnvResult{}, err
 	}
-	env, err := in.From.load()
+	env, err := readEnvFile(uc.files, in.Dir, in.Path)
 	if err != nil {
 		return ImportEnvResult{}, err
 	}
@@ -42,7 +44,7 @@ func (uc *ImportEnv) Execute(ctx context.Context, in ImportEnvInput) (ImportEnvR
 	err = uc.repo.Update(ctx, func(s *domain.Snapshot) error {
 		result.Replaced = s.Has(in.Name)
 		stored, err := s.Put(env, uc.clock.Now())
-		result.Env = stored
+		result.Env = envView(stored)
 		return err
 	})
 	if err != nil {

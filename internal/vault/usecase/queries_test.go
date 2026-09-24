@@ -71,7 +71,7 @@ func TestListEnvsFilters(t *testing.T) {
 func TestShowEnv(t *testing.T) {
 	uc := NewShowEnv(newRepo(sampleEnv()))
 	env, err := uc.Execute(context.Background(), "a")
-	if err != nil || env.Name != "a" || !env.SameContent(sampleEnv()) {
+	if err != nil || env.Name != "a" || !envFromView(env).SameContent(sampleEnv()) {
 		t.Fatalf("env = %+v, %v", env, err)
 	}
 	if _, err := uc.Execute(context.Background(), "nope"); !errors.Is(err, domain.ErrEnvNotFound) {

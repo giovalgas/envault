@@ -2,8 +2,6 @@ package usecase
 
 import (
 	"context"
-
-	"github.com/giovalgas/envault/internal/compose/domain"
 )
 
 type GetSelection struct {
@@ -12,7 +10,7 @@ type GetSelection struct {
 }
 
 type GetSelectionResult struct {
-	Selection domain.Selection
+	Selection SelectionView
 	Missing   []string
 }
 
@@ -30,5 +28,5 @@ func (uc *GetSelection) Execute(ctx context.Context) (GetSelectionResult, error)
 		return GetSelectionResult{}, err
 	}
 	kept, missing := stored.Split(existing)
-	return GetSelectionResult{Selection: kept, Missing: missing}, nil
+	return GetSelectionResult{Selection: selectionView(kept), Missing: missing}, nil
 }

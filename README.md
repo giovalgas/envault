@@ -323,3 +323,25 @@ O comando só remove o arquivo da chave depois de confirmar que consegue lê-la 
 | `ENVAULT_HOME` | Sobrescreve o diretório do cofre (`vault.enc`, `key` e `vault.lock`). Sem ela, usa `os.UserConfigDir()/envault`. |
 | `ENVAULT_KEY` | Chave de criptografia em base64, sobrescrevendo qualquer implementação de armazenamento de chave. |
 | `ENVAULT_DEBUG` | Com valor `1`, `true`, `yes` ou `on`, liga o log de depuração da TUI em arquivo. |
+
+## Arquitetura
+
+Clean Architecture com três Bounded Contexts em `internal/`: `vault` (o cofre, o núcleo), `compose` (montagem do `.env`, seleção, `exec` e template) e `skill` (integração com o Claude Code). Cada um tem `domain`, `usecase` e `infra`. O kernel compartilhado fica em `internal/shared` (`dotenv` e `config`), e `cmd/envault/main.go` é o composition root.
+
+```
+internal/
+  vault/    domain usecase infra
+  compose/  domain usecase infra
+  skill/    domain usecase infra
+  shared/   dotenv config
+  delivery/
+    cli/    app command/{vault,compose,skill} presenter
+    tui/    app screen/{list,detail,compose,confirm} viewmodel theme
+```
+
+A delivery fica em dois pacotes:
+
+- `internal/delivery/cli`: `app` compõe os comandos e as flags globais; `command/vault`, `command/compose` e `command/skill` têm um arquivo por comando, que lê as flags, chama o use case e entrega o resultado ao presenter; `presenter` cuida da saída humana e do JSON com `schema_version`, do código de saída e do envelope de erro; `root.go` registra tudo.
+- `internal/delivery/tui`: a fachada `tui.go` abre `app`, o model raiz que roteia entre telas; `screen/list`, `screen/detail`, `screen/compose` e `screen/confirm` têm um model por tela; `viewmodel` traduz saída de use case em linhas de tela (máscara de valor, seleção, conflito, checklist de template); `theme` guarda estilos, teclas e ajuda.
+
+`internal/architecture_test.go` trava as regras de dependência: `domain` só importa `internal/shared`; `usecase` só importa o próprio `domain` e `internal/shared`; `internal/shared` não importa nenhum BC nem a delivery; nenhum BC importa `domain`, `usecase` ou `infra` de outro BC, com a única exceção de `compose/infra/vaultsource` sobre `vault/usecase`; só `cmd/envault` importa `internal/delivery`, e dentro da delivery só a mesma interface (`cli` ou `tui`); a delivery em produção não importa `domain`, `infra`, `shared/dotenv` nem `os/exec`; `command/...` e `screen/...` não importam `os`, `io/fs` nem `path/filepath`; `command/...` não importa `fmt`, porque escreve só pelo presenter; e uma tela da TUI só importa `theme`, `viewmodel` e `usecase` dos BCs. Rode com `go test ./internal -run Architecture`.

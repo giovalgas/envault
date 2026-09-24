@@ -102,3 +102,45 @@ func (f *fakeExports) WriteExports(path, script string) error {
 	f.script = script
 	return f.err
 }
+
+func pairsOf(plan PlanView) []domain.Var {
+	pairs := make([]domain.Var, len(plan.Vars))
+	for i, resolved := range plan.Vars {
+		pairs[i] = domain.Var{Key: resolved.Key, Value: resolved.Value}
+	}
+	return pairs
+}
+
+type fakeEnvironment []string
+
+func (e fakeEnvironment) Environ() []string {
+	return e
+}
+
+type fakeTemplates struct {
+	content map[string]string
+	err     error
+	paths   []string
+}
+
+func (f *fakeTemplates) ReadTemplate(path string) ([]byte, bool, error) {
+	f.paths = append(f.paths, path)
+	if f.err != nil {
+		return nil, false, f.err
+	}
+	content, ok := f.content[path]
+	return []byte(content), ok, nil
+}
+
+type fakeProcesses struct {
+	status ProcessStatus
+	err    error
+	spec   ProcessSpec
+	calls  int
+}
+
+func (f *fakeProcesses) Run(spec ProcessSpec) (ProcessStatus, error) {
+	f.calls++
+	f.spec = spec
+	return f.status, f.err
+}

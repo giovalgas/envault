@@ -30,30 +30,35 @@ func (d *EditDraft) Warnings() []string {
 	return d.session.Warnings()
 }
 
-func (d *EditDraft) Process(ctx context.Context) domain.EditorProcess {
+func (d *EditDraft) Process(ctx context.Context) EditorProcess {
 	return d.session.Process(ctx)
 }
 
-func (d *EditDraft) Review(runErr error) (domain.EditResult, error) {
+func (d *EditDraft) Review(runErr error) (EditResultView, error) {
 	if d.finished {
-		return domain.EditResult{}, errDraftFinished
+		return EditResultView{}, errDraftFinished
 	}
 	result, err := d.session.Review(runErr)
 	if errors.Is(err, domain.ErrEditReopen) {
-		return domain.EditResult{}, err
+		return EditResultView{}, err
 	}
 	d.finished = true
 	if closeErr := d.session.Close(); closeErr != nil && err == nil {
-		return domain.EditResult{}, fmt.Errorf("remover arquivo temporário: %w", closeErr)
+		return EditResultView{}, fmt.Errorf("remover arquivo temporário: %w", closeErr)
 	}
-	return result, err
+	return editResultView(result), err
 }
 
-func (d *EditDraft) Apply(ctx context.Context, result domain.EditResult) (domain.Env, error) {
+func (d *EditDraft) Apply(ctx context.Context, view EditResultView) (EnvView, error) {
+	result := editResultFromView(view)
 	if !result.Changed {
-		return result.Env, nil
+		return envView(result.Env), nil
 	}
-	return d.store(ctx, result.Env)
+	stored, err := d.store(ctx, result.Env)
+	if err != nil {
+		return EnvView{}, err
+	}
+	return envView(stored), nil
 }
 
 func (d *EditDraft) Close() error {

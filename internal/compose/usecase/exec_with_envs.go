@@ -9,31 +9,31 @@ import (
 )
 
 type ExecWithEnvsInput struct {
-	Envs     []string
-	Template *domain.Template
-	Options  domain.Options
-	Environ  []string
+	Envs         []string
+	Template     TemplateView
+	OnlyTemplate bool
 }
 
 type ExecWithEnvsResult struct {
-	Plan    domain.Plan
+	Plan    PlanView
 	Environ []string
 }
 
 type ExecWithEnvs struct {
-	envs EnvReader
+	envs        EnvReader
+	environment Environment
 }
 
-func NewExecWithEnvs(envs EnvReader) *ExecWithEnvs {
-	return &ExecWithEnvs{envs: envs}
+func NewExecWithEnvs(envs EnvReader, environment Environment) *ExecWithEnvs {
+	return &ExecWithEnvs{envs: envs, environment: environment}
 }
 
 func (uc *ExecWithEnvs) Execute(ctx context.Context, in ExecWithEnvsInput) (ExecWithEnvsResult, error) {
-	plan, err := combine(ctx, uc.envs, in.Envs, in.Template, in.Options)
+	plan, err := combine(ctx, uc.envs, in.Envs, in.Template, in.OnlyTemplate)
 	if err != nil {
 		return ExecWithEnvsResult{}, err
 	}
-	return ExecWithEnvsResult{Plan: plan, Environ: overlayEnviron(in.Environ, plan.Pairs())}, nil
+	return ExecWithEnvsResult{Plan: planView(plan), Environ: overlayEnviron(uc.environment.Environ(), plan.Pairs())}, nil
 }
 
 func overlayEnviron(base []string, vars []domain.Var) []string {

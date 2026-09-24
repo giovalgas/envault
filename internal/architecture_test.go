@@ -31,6 +31,17 @@ var (
 	exceptionTo   = modulePrefix + "internal/vault/usecase"
 )
 
+var forbiddenDeliveryImports = []string{
+	modulePrefix + "internal/shared/dotenv",
+	"os/exec",
+}
+
+var forbiddenCommandAndScreenImports = []string{
+	"os",
+	"io/fs",
+	"path/filepath",
+}
+
 type listedPackage struct {
 	ImportPath string
 	Imports    []string
@@ -212,11 +223,101 @@ func checkDeliveryProductionDoesNotImportInfra(packages map[string]listedPackage
 
 		for _, imp := range pkg.Imports {
 			to := classify(imp)
-			if to.kind == kindBC && to.layer == "infra" {
+			if to.kind == kindBC && (to.layer == "infra" || to.layer == "domain") {
 				violations = append(violations, fmt.Sprintf(
-					"%s importa %s: código de produção de delivery não importa infra de nenhum BC", path, imp,
+					"%s importa %s: código de produção de delivery não importa domain nem infra de nenhum BC", path, imp,
+				))
+				continue
+			}
+
+			for _, forbidden := range forbiddenDeliveryImports {
+				if imp == forbidden {
+					violations = append(violations, fmt.Sprintf(
+						"%s importa %s: código de produção de delivery não importa internal/shared/dotenv nem os/exec", path, imp,
+					))
+				}
+			}
+		}
+	}
+
+	return violations
+}
+
+func isCliCommandPackage(importPath string) bool {
+	return strings.HasPrefix(importPath, modulePrefix+"internal/delivery/cli/command/")
+}
+
+func isTuiScreenPackage(importPath string) bool {
+	return strings.HasPrefix(importPath, modulePrefix+"internal/delivery/tui/screen/")
+}
+
+func checkCommandAndScreenDoNotImportFilesystemPackages(packages map[string]listedPackage) []string {
+	var violations []string
+
+	for path, pkg := range packages {
+		if !isCliCommandPackage(path) && !isTuiScreenPackage(path) {
+			continue
+		}
+
+		for _, imp := range pkg.Imports {
+			for _, forbidden := range forbiddenCommandAndScreenImports {
+				if imp == forbidden {
+					violations = append(violations, fmt.Sprintf(
+						"%s importa %s: delivery/cli/command/... e delivery/tui/screen/... não importam os, io/fs nem path/filepath", path, imp,
+					))
+				}
+			}
+		}
+	}
+
+	return violations
+}
+
+func checkCliCommandDoesNotImportFmt(packages map[string]listedPackage) []string {
+	var violations []string
+
+	for path, pkg := range packages {
+		if !isCliCommandPackage(path) {
+			continue
+		}
+
+		for _, imp := range pkg.Imports {
+			if imp == "fmt" {
+				violations = append(violations, fmt.Sprintf(
+					"%s importa %s: delivery/cli/command/... não escreve direto em stdout ou stderr, só pelo presenter", path, imp,
 				))
 			}
+		}
+	}
+
+	return violations
+}
+
+func checkTuiScreenOnlyImportsThemeViewmodelAndUsecases(packages map[string]listedPackage) []string {
+	var violations []string
+	themePath := modulePrefix + "internal/delivery/tui/theme"
+	viewmodelPath := modulePrefix + "internal/delivery/tui/viewmodel"
+
+	for path, pkg := range packages {
+		if !isTuiScreenPackage(path) {
+			continue
+		}
+
+		for _, imp := range pkg.Imports {
+			to := classify(imp)
+			if to.kind == kindExternal {
+				continue
+			}
+			if to.kind == kindBC && to.layer == "usecase" {
+				continue
+			}
+			if to.kind == kindDelivery && (imp == themePath || imp == viewmodelPath) {
+				continue
+			}
+
+			violations = append(violations, fmt.Sprintf(
+				"%s importa %s: uma tela da TUI só importa theme, viewmodel e usecase dos BCs, dentro do módulo", path, imp,
+			))
 		}
 	}
 
@@ -254,17 +355,33 @@ func checkOnlyCmdEnvaultImportsDelivery(packages map[string]listedPackage) []str
 			continue
 		}
 
+		from := deliveryInterface(path)
 		for _, imp := range pkg.Imports {
-			to := classify(imp)
-			if to.kind == kindDelivery {
-				violations = append(violations, fmt.Sprintf(
-					"%s importa %s: só cmd/envault importa internal/delivery/...", path, imp,
-				))
+			if classify(imp).kind != kindDelivery {
+				continue
 			}
+			to := deliveryInterface(imp)
+			if from != "" && from == to {
+				continue
+			}
+			violations = append(violations, fmt.Sprintf(
+				"%s importa %s: só cmd/envault importa internal/delivery/..., e dentro da delivery só a mesma interface (cli ou tui)", path, imp,
+			))
 		}
 	}
 
 	return violations
+}
+
+func deliveryInterface(importPath string) string {
+	if classify(importPath).kind != kindDelivery {
+		return ""
+	}
+	parts := strings.Split(strings.TrimPrefix(importPath, modulePrefix), "/")
+	if len(parts) < 3 {
+		return ""
+	}
+	return parts[2]
 }
 
 func TestArchitectureDependencyRules(t *testing.T) {
@@ -277,6 +394,9 @@ func TestArchitectureDependencyRules(t *testing.T) {
 	violations = append(violations, checkDeliveryProductionDoesNotImportInfra(packages)...)
 	violations = append(violations, checkSharedDoesNotImportBoundedContextsOrDelivery(packages)...)
 	violations = append(violations, checkOnlyCmdEnvaultImportsDelivery(packages)...)
+	violations = append(violations, checkCommandAndScreenDoNotImportFilesystemPackages(packages)...)
+	violations = append(violations, checkCliCommandDoesNotImportFmt(packages)...)
+	violations = append(violations, checkTuiScreenOnlyImportsThemeViewmodelAndUsecases(packages)...)
 
 	if len(violations) == 0 {
 		return

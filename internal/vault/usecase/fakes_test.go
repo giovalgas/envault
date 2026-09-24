@@ -121,8 +121,24 @@ func editTo(content domain.Env) *fakeEditor {
 	}}
 }
 
-func source(name, content string) EnvSource {
-	return EnvSource{Name: name, Read: func() ([]byte, error) { return []byte(content), nil }}
+type fakeFiles struct {
+	content map[string]string
+	err     error
+	reads   int
+	paths   []string
+}
+
+func (f *fakeFiles) ReadEnvFile(path string) ([]byte, error) {
+	f.reads++
+	f.paths = append(f.paths, path)
+	if f.err != nil {
+		return nil, f.err
+	}
+	return []byte(f.content[path]), nil
+}
+
+func files(path, content string) *fakeFiles {
+	return &fakeFiles{content: map[string]string{path: content}}
 }
 
 func sampleEnv() domain.Env {

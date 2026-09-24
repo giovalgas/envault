@@ -5,13 +5,11 @@ import (
 	"errors"
 	"slices"
 	"testing"
-
-	"github.com/giovalgas/envault/internal/compose/domain"
 )
 
 func TestLoadShellExportsWritesDialect(t *testing.T) {
 	reader := newReader(env("a", "X", "1", "Q", "it's"), env("b", "X", "2"))
-	tmpl := &domain.Template{Entries: []domain.TemplateEntry{{Key: "X"}, {Key: "PORT", Default: "3000", HasDefault: true}, {Key: "MISSING"}}}
+	tmpl := TemplateView{Found: true, Entries: []TemplateEntryView{{Key: "X"}, {Key: "PORT", Default: "3000", HasDefault: true}, {Key: "MISSING"}}}
 	cases := []struct {
 		dialect string
 		want    string
@@ -41,13 +39,13 @@ func TestLoadShellExportsWritesDialect(t *testing.T) {
 
 func TestLoadShellExportsOnlyTemplate(t *testing.T) {
 	exports := &fakeExports{}
-	tmpl := &domain.Template{Entries: []domain.TemplateEntry{{Key: "X"}}}
+	tmpl := TemplateView{Found: true, Entries: []TemplateEntryView{{Key: "X"}}}
 	_, err := NewLoadShellExports(NewRenderShell(newReader(env("a", "X", "1", "Y", "2"))), exports).Execute(context.Background(), LoadShellExportsInput{
-		Envs:       []string{"a"},
-		Template:   tmpl,
-		Options:    domain.Options{OnlyTemplate: true},
-		Dialect:    ShellBash,
-		ExportFile: "exports",
+		Envs:         []string{"a"},
+		Template:     tmpl,
+		OnlyTemplate: true,
+		Dialect:      ShellBash,
+		ExportFile:   "exports",
 	})
 	if err != nil || exports.script != "export X='1'\n" {
 		t.Fatalf("err %v script %q", err, exports.script)

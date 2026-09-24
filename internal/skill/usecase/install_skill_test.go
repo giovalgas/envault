@@ -86,3 +86,14 @@ func TestInstallSkillWriterError(t *testing.T) {
 		t.Fatal("Execute sem erro")
 	}
 }
+
+func TestPermissionsJSONMatchesDomain(t *testing.T) {
+	got, err := PermissionsJSON()
+	if err != nil {
+		t.Fatalf("PermissionsJSON: %v", err)
+	}
+	want, err := domain.PermissionsJSON()
+	if err != nil || got != want {
+		t.Fatalf("PermissionsJSON = %q, want %q (%v)", got, want, err)
+	}
+}

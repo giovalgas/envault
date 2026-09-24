@@ -8,9 +8,12 @@ import (
 
 	"github.com/giovalgas/envault/internal/compose/infra/envfile"
 	"github.com/giovalgas/envault/internal/compose/infra/gitignore"
+	"github.com/giovalgas/envault/internal/compose/infra/process"
 	"github.com/giovalgas/envault/internal/compose/infra/selectionfile"
+	"github.com/giovalgas/envault/internal/compose/infra/templatefile"
 	"github.com/giovalgas/envault/internal/compose/infra/vaultsource"
 	"github.com/giovalgas/envault/internal/delivery/cli"
+	"github.com/giovalgas/envault/internal/delivery/cli/app"
 	"github.com/giovalgas/envault/internal/delivery/tui"
 	"github.com/giovalgas/envault/internal/shared/config"
 	skillinfra "github.com/giovalgas/envault/internal/skill/infra"
@@ -19,6 +22,7 @@ import (
 	"github.com/giovalgas/envault/internal/vault/infra/editor"
 	"github.com/giovalgas/envault/internal/vault/infra/encryptedfile"
 	"github.com/giovalgas/envault/internal/vault/infra/keystore"
+	"github.com/giovalgas/envault/internal/vault/infra/sourcefile"
 	"github.com/giovalgas/envault/internal/vault/usecase"
 )
 
@@ -31,16 +35,16 @@ func main() {
 func run() int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	wiring := cli.Wiring{Vault: wireVault, KeyMigration: wireKeyMigration, Compose: wireCompose, Skill: wireSkill, TUI: runTUI}
-	return cli.Execute(ctx, cli.NewApp(version, wiring), os.Args[1:])
+	wiring := app.Wiring{Vault: wireVault, KeyMigration: wireKeyMigration, Compose: wireCompose, Skill: wireSkill, TUI: runTUI}
+	return cli.Execute(ctx, app.NewApp(version, wiring), os.Args[1:])
 }
 
-func wireVault(cfg config.Config, streams cli.Streams) (cli.VaultUseCases, error) {
+func wireVault(cfg config.Config, streams app.Streams) (app.VaultUseCases, error) {
 	keys, err := keystore.WithOverride(cfg.KeyOverride, keyChain(cfg))
 	if err != nil {
-		return cli.VaultUseCases{}, err
+		return app.VaultUseCases{}, err
 	}
-	return cli.NewVaultUseCases(cli.VaultDeps{
+	return app.NewVaultUseCases(app.VaultDeps{
 		Repository: encryptedfile.New(cfg.Paths, keys),
 		Editor: editor.New(editor.Options{
 			RuntimeDir: cfg.RuntimeDir,
@@ -49,6 +53,7 @@ func wireVault(cfg config.Config, streams cli.Streams) (cli.VaultUseCases, error
 			Stderr:     streams.Stderr,
 		}),
 		Sessions: editor.NewInteractive(editor.Options{RuntimeDir: cfg.RuntimeDir}),
+		Files:    sourcefile.New(),
 	}), nil
 }
 
@@ -58,19 +63,23 @@ func wireKeyMigration(cfg config.Config) *usecase.MigrateKey {
 	})
 }
 
-func wireCompose(cfg cli.ConfigLoader, vault cli.VaultOpener) cli.ComposeUseCases {
+func wireCompose(cfg app.ConfigLoader, vault app.VaultOpener) app.ComposeUseCases {
 	source := vaultsource.New(vault.ListEnvs)
-	return cli.NewComposeUseCases(cli.ComposeDeps{
-		Envs:       source,
-		Catalog:    source,
-		Files:      envfile.New(),
-		Exports:    envfile.New(),
-		Gitignore:  gitignore.New(),
-		Selections: selectionfile.New(cfg.Dir),
+	processes := process.New()
+	return app.NewComposeUseCases(app.ComposeDeps{
+		Envs:        source,
+		Catalog:     source,
+		Files:       envfile.New(),
+		Exports:     envfile.New(),
+		Gitignore:   gitignore.New(),
+		Selections:  selectionfile.New(cfg.Dir),
+		Templates:   templatefile.New(),
+		Environment: processes,
+		Processes:   processes,
 	})
 }
 
-func runTUI(ctx context.Context, session cli.TUISession) error {
+func runTUI(ctx context.Context, session app.TUISession) error {
 	vault, compose := session.Vault, session.Compose
 	store := tui.VaultStore{
 		ListEnvs:  vault.ListEnvs,
@@ -83,6 +92,7 @@ func runTUI(ctx context.Context, session cli.TUISession) error {
 		BeginCreateEnv: vault.BeginCreateEnv,
 		BeginEditEnv:   vault.BeginEditEnv,
 		ImportEnv:      vault.ImportEnv,
+		LoadTemplate:   compose.LoadTemplate,
 		PlanLoad:       compose.PlanLoad,
 		LoadEnvFile:    compose.LoadEnvFile,
 		ShellExports:   compose.LoadShellExports,
@@ -100,7 +110,7 @@ func runTUI(ctx context.Context, session cli.TUISession) error {
 	})
 }
 
-func initVaultCmd(vault cli.VaultUseCases) tui.InitVaultFunc {
+func initVaultCmd(vault app.VaultUseCases) tui.InitVaultFunc {
 	return func(ctx context.Context) (bool, string, error) {
 		result, err := vault.InitVault.Execute(ctx)
 		return result.Created, result.Location, err

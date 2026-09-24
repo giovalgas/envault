@@ -15,9 +15,9 @@ func NewCopyEnv(repo domain.EnvRepository, clock domain.Clock) *CopyEnv {
 	return &CopyEnv{repo: repo, clock: clock}
 }
 
-func (uc *CopyEnv) Execute(ctx context.Context, src, dst string) (domain.Env, error) {
+func (uc *CopyEnv) Execute(ctx context.Context, src, dst string) (EnvView, error) {
 	if err := domain.ValidateName(dst); err != nil {
-		return domain.Env{}, err
+		return EnvView{}, err
 	}
 	var result domain.Env
 	err := uc.repo.Update(ctx, func(s *domain.Snapshot) error {
@@ -25,5 +25,5 @@ func (uc *CopyEnv) Execute(ctx context.Context, src, dst string) (domain.Env, er
 		result, err = s.Copy(src, dst, uc.clock.Now())
 		return err
 	})
-	return result, err
+	return envView(result), err
 }

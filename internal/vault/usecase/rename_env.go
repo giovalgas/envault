@@ -15,9 +15,9 @@ func NewRenameEnv(repo domain.EnvRepository, clock domain.Clock) *RenameEnv {
 	return &RenameEnv{repo: repo, clock: clock}
 }
 
-func (uc *RenameEnv) Execute(ctx context.Context, oldName, newName string) (domain.Env, error) {
+func (uc *RenameEnv) Execute(ctx context.Context, oldName, newName string) (EnvView, error) {
 	if err := domain.ValidateName(newName); err != nil {
-		return domain.Env{}, err
+		return EnvView{}, err
 	}
 	var result domain.Env
 	err := uc.repo.Update(ctx, func(s *domain.Snapshot) error {
@@ -25,5 +25,5 @@ func (uc *RenameEnv) Execute(ctx context.Context, oldName, newName string) (doma
 		result, err = s.Rename(oldName, newName, uc.clock.Now())
 		return err
 	})
-	return result, err
+	return envView(result), err
 }

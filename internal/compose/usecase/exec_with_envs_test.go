@@ -27,12 +27,12 @@ func TestExecEnviron(t *testing.T) {
 
 func TestExecWithEnvs(t *testing.T) {
 	reader := newReader(env("a", "X", "1"), env("b", "X", "2", "Y", "3"))
-	tmpl := &domain.Template{Entries: []domain.TemplateEntry{{Key: "X"}, {Key: "SENTRY_DSN"}}}
-	result, err := NewExecWithEnvs(reader).Execute(context.Background(), ExecWithEnvsInput{
-		Envs:     []string{"a", "b"},
-		Template: tmpl,
-		Options:  domain.Options{OnlyTemplate: true},
-		Environ:  []string{"X=processo", "KEEP=1"},
+	tmpl := TemplateView{Found: true, Entries: []TemplateEntryView{{Key: "X"}, {Key: "SENTRY_DSN"}}}
+	environment := fakeEnvironment{"X=processo", "KEEP=1"}
+	result, err := NewExecWithEnvs(reader, environment).Execute(context.Background(), ExecWithEnvsInput{
+		Envs:         []string{"a", "b"},
+		Template:     tmpl,
+		OnlyTemplate: true,
 	})
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
@@ -43,7 +43,7 @@ func TestExecWithEnvs(t *testing.T) {
 	if !slices.Equal(result.Plan.Missing, []string{"SENTRY_DSN"}) {
 		t.Fatalf("missing = %v", result.Plan.Missing)
 	}
-	if _, err := NewExecWithEnvs(&fakeReader{err: errBoom}).Execute(context.Background(), ExecWithEnvsInput{Envs: []string{"a"}}); !errors.Is(err, errBoom) {
+	if _, err := NewExecWithEnvs(&fakeReader{err: errBoom}, fakeEnvironment{}).Execute(context.Background(), ExecWithEnvsInput{Envs: []string{"a"}}); !errors.Is(err, errBoom) {
 		t.Fatalf("err = %v", err)
 	}
 }
